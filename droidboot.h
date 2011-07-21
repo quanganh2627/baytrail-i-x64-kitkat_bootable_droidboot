@@ -21,7 +21,7 @@ extern struct disk_info *disk_info;
 #define AUTOBOOT_DELAY_SECS	8
 #endif
 #ifndef SCRATCH_SIZE
-#define SCRATCH_SIZE		(256 * MEGABYTE)
+#define SCRATCH_SIZE		(400 * MEGABYTE)
 #endif
 
 #define DISK_CONFIG_LOCATION	"/system/etc/disk_layout.conf"
