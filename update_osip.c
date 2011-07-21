@@ -100,18 +100,48 @@ static int get_block_size(void)
 	return mmc_page_size * MMC_PAGES_PER_BLOCK;
 }
 
+int get_first_os_index(void)
+{
+	struct OSIP_header osip;
+	int i;
+
+	/* update_number indexes from the first OSII that corresponds to
+	* a kernel image. So if we have secondstage FW blobs or other
+	 * non-OS entries, increment update_number over them */
+	if (read_OSIP(&osip) < 0) {
+		LOGE("Can't read OSIP!\n");
+		return -1;
+	}
+
+	for (i = 0; i < osip.num_pointers; i++) {
+		/* Section 2.7.1.4.5 in the FAS; we want either signed
+		 * or unsigned OS kernel images (values 0x0 and 0x1) */
+		if (osip.desc[i].attribute <= 1)
+			return i;
+	}
+	LOGE("No OSII entries seem to contain os images!\n");
+	return -1;
+}
 
 int write_stitch_image(void *data, size_t size, int update_number)
 {
 	struct OSIP_header osip;
-	//struct OSIP_header bck_osip;
 	struct OSII *osii;
 	void *blob;
 	int block_size = get_block_size();
 	int page_size = get_page_size();
 	int fd;
+	int osii_offset;
 
-	LOGI("now into write_stitch_image\n");
+	osii_offset = get_first_os_index();
+	if (osii_offset < 0) {
+		LOGE("Can't determine OSII offset for first OS image\n");
+		return -1;
+	}
+	update_number += osii_offset;
+
+	LOGI("Writing OS image to OSII%d (offset %d)\n",
+			update_number, osii_offset);
 	if (block_size < 0) {
 		LOGE("block size wrong\n");
 		return -1;
