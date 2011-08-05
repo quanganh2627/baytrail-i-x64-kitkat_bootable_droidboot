@@ -7,7 +7,7 @@ LOCAL_SRC_FILES := \
 	aboot.c \
 	fastboot.c \
 	util.c \
-	droidboot.c
+	droidboot.c \
 
 LOCAL_CFLAGS := -DDEVICE_NAME=\"$(TARGET_DEVICE)\" \
 	-W -Wall -Wno-unused-parameter -Werror
@@ -55,6 +55,18 @@ $(inc) : $(inc).list
 
 $(call intermediates-dir-for,EXECUTABLES,droidboot)/aboot.o : $(inc)
 LOCAL_C_INCLUDES += $(dir $(inc))
+
+ifneq ($(DROIDBOOT_NO_GUI),true)
+LOCAL_STATIC_LIBRARIES += libminui libpng libpixelflinger_static libz
+LOCAL_SRC_FILES += ui.c
+LOCAL_CFLAGS += -DUSE_GUI
+LOCAL_C_INCLUDES += bootable/recovery/minui
+
+#libpixelflinger_static for x86 is using encoder under hardware/intel/apache-harmony
+ifeq ($(TARGET_ARCH),x86)
+LOCAL_STATIC_LIBRARIES += libenc
+endif
+endif
 
 include $(BUILD_EXECUTABLE)
 

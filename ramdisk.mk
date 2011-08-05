@@ -42,9 +42,14 @@ droidboot_modules := \
 	dosfstools \
 	gzip \
 	kexec \
-	droidboot
+	droidboot \
 
 droidboot_system_files = $(call module-installed-files,$(droidboot_modules))
+
+ifneq ($(DROIDBOOT_NO_GUI),true)
+droidboot_resources_common := $(LOCAL_PATH)/res
+droidboot_resources_deps := $(shell find $(droidboot_resources_common) -type f)
+endif
 
 # $(1): source base dir
 # $(2): target base dir
@@ -52,7 +57,6 @@ define droidboot-copy-files
 $(hide) $(foreach srcfile,$(droidboot_system_files), \
 	destfile=$(patsubst $(1)/%,$(2)/%,$(srcfile)); \
 	mkdir -p `dirname $$destfile`; \
-	echo "Copy $(srcfile) $$destfile"; \
 	cp -fR $(srcfile) $$destfile; \
 )
 endef
@@ -76,22 +80,27 @@ $(DROIDBOOT_RAMDISK): \
 		$(INSTALLED_RAMDISK_TARGET) \
 		$(INSTALLED_SYSTEMIMAGE) \
 		$(droidboot_initrc) \
-		$(droidboot_system_files)
-	$(info Creating Droidboot ramdisk $@)
-	rm -rf $(droidboot_root_out)
-	mkdir -p $(droidboot_root_out)
-	mkdir -p $(droidboot_root_out)/sbin
-	mkdir -p $(droidboot_root_out)/data
-	mkdir -p $(droidboot_root_out)/mnt
-	mkdir -p $(droidboot_system_out)
-	mkdir -p $(droidboot_system_out)/etc
-	mkdir -p $(droidboot_system_out)/bin
-	cp -fR $(TARGET_ROOT_OUT) $(droidboot_out)
-	rm -f $(droidboot_root_out)/init*.rc
-	cp -f $(droidboot_initrc) $(droidboot_root_out)
-	$(call droidboot-copy-files,$(TARGET_OUT),$(droidboot_system_out))
-	cp -f $(TARGET_DISK_LAYOUT_CONFIG) $(droidboot_etc_out)/disk_layout.conf
-	$(MKBOOTFS) $(droidboot_root_out) | gzip > $@
+		$(droidboot_resources_deps) \
+		$(droidboot_system_files) \
+
+	$(hide) rm -rf $(droidboot_root_out)
+	$(hide) mkdir -p $(droidboot_root_out)
+	$(hide) mkdir -p $(droidboot_root_out)/sbin
+	$(hide) mkdir -p $(droidboot_root_out)/data
+	$(hide) mkdir -p $(droidboot_root_out)/mnt
+	$(hide) mkdir -p $(droidboot_system_out)
+	$(hide) mkdir -p $(droidboot_system_out)/etc
+	$(hide) mkdir -p $(droidboot_system_out)/bin
+	$(hide) cp -fR $(TARGET_ROOT_OUT) $(droidboot_out)
+	$(hide) rm -f $(droidboot_root_out)/init*.rc
+	$(hide) cp -f $(droidboot_initrc) $(droidboot_root_out)
+ifneq ($(DROIDBOOT_NO_GUI),true)
+	$(hide) cp -rf $(droidboot_resources_common) $(droidboot_root_out)/
+endif
+	$(hide) $(call droidboot-copy-files,$(TARGET_OUT),$(droidboot_system_out))
+	$(hide) cp -f $(TARGET_DISK_LAYOUT_CONFIG) $(droidboot_etc_out)/disk_layout.conf
+	$(hide) $(MKBOOTFS) $(droidboot_root_out) | gzip > $@
+	@echo "Created Droidboot ramdisk: $@"
 
 # Create a standard Android bootimage using the regular kernel and the
 # droidboot ramdisk.
@@ -99,15 +108,17 @@ $(DROIDBOOT_BOOTIMAGE): \
 		$(INSTALLED_KERNEL_TARGET) \
 		$(DROIDBOOT_RAMDISK) \
 		$(BOARD_KERNEL_CMDLINE_FILE) \
-		$(MKBOOTIMG)
-	$(MKBOOTIMG) --kernel $(INSTALLED_KERNEL_TARGET) \
+		$(MKBOOTIMG) \
+
+	$(hide) $(MKBOOTIMG) --kernel $(INSTALLED_KERNEL_TARGET) \
 		     --ramdisk $(DROIDBOOT_RAMDISK) \
 		     --cmdline "f_adb.fastboot=1 $(BOARD_KERNEL_CMDLINE)" \
 		     --output $@
+	@echo "Created Droidboot bootimage: $@"
 
 .PHONY: droidboot-ramdisk
 droidboot-ramdisk: $(DROIDBOOT_RAMDISK)
 
-.PHONY: droidboot
-droidboot: $(DROIDBOOT_BOOTIMAGE)
+.PHONY: droidboot-bootimage
+droidboot-bootimage: $(DROIDBOOT_BOOTIMAGE)
 

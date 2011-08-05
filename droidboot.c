@@ -43,13 +43,13 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include <cutils/log.h>
 #include <diskconfig/diskconfig.h>
 
 #include "aboot.h"
 #include "util.h"
 #include "droidboot.h"
 #include "fastboot.h"
+#include "droidboot_ui.h"
 
 /* libdiskconfig data structure representing the intended layout of the
  * internal disk, as read from /etc/disk_layout.conf */
@@ -247,6 +247,9 @@ int main(int argc, char **argv)
 	char *config_location;
 	pthread_t thr;
 	unsigned int autoboot_delay_secs = AUTOBOOT_DELAY_SECS;
+
+	ui_init();
+	ui_set_background(BACKGROUND_ICON_INSTALLING);
 
 	LOGI(" -- Droidboot %s --\n", DROIDBOOT_VERSION);
 	if (argc > 1)

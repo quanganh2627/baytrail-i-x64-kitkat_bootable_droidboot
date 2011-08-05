@@ -17,6 +17,8 @@
 #ifndef DROIDBOOT_PLUGIN_H
 #define DROIDBOOT_PLUGIN_H
 
+#include <droidboot_ui.h>
+
 typedef int (*flash_func)(void *data, unsigned sz);
 
 int aboot_register_flash_cmd(char *key, flash_func callback);

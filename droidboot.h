@@ -25,8 +25,6 @@ extern struct disk_info *disk_info;
 #endif
 
 #define DISK_CONFIG_LOCATION	"/system/etc/disk_layout.conf"
-#define DROIDBOOT_VERSION	"0.4"
-
-#define LOGPERROR(x)	LOGE("%s failed: %s", x, strerror(errno))
+#define DROIDBOOT_VERSION	"0.5"
 
 #endif

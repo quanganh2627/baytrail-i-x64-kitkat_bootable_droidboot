@@ -33,10 +33,10 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
-
-#include <cutils/log.h>
+#include <stdio.h>
 
 #include "droidboot.h"
+#include "droidboot_ui.h"
 
 /* todo: give lk strtoul and nuke this */
 static unsigned hex2unsigned(const char *x)
@@ -301,8 +301,10 @@ again:
 				continue;
 			disable_autoboot();
 			fastboot_state = STATE_COMMAND;
+			ui_show_indeterminate_progress();
 			cmd->handle((const char *)buffer + cmd->prefix_len,
 				    (void *)download_base, download_size);
+			ui_reset_progress();
 			if (fastboot_state == STATE_COMMAND)
 				fastboot_fail("unknown reason");
 			goto again;

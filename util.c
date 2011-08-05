@@ -28,8 +28,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-#define LOG_TAG "droidboot"
-
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -41,11 +39,10 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include <cutils/log.h>
 #include <diskconfig/diskconfig.h>
 
-#include "util.h"
 #include "droidboot.h"
+#include "droidboot_ui.h"
 
 void die(void)
 {
