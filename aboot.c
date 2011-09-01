@@ -92,7 +92,7 @@ static int aboot_register_cmd(Hashmap *map, char *key, void *callback)
 		return -1;
 	}
 	hashmapPut(map, k, callback);
-	LOGD("Registered plugin function %p (%s) with table %p",
+	LOGV("Registered plugin function %p (%s) with table %p",
 			callback, k, map);
 	return 0;
 }
@@ -408,6 +408,16 @@ static void cmd_reboot(const char *arg, void *data, unsigned sz)
 	LOGE("Reboot failed");
 }
 
+static void cmd_reboot_bl(const char *arg, void *data, unsigned sz)
+{
+	fastboot_okay("");
+	sync();
+	LOGI("Restarting Droidboot...\n");
+	__reboot(LINUX_REBOOT_MAGIC1, LINUX_REBOOT_MAGIC2,
+			LINUX_REBOOT_CMD_RESTART2, "fastboot");
+	LOGE("Reboot failed");
+}
+
 static void cmd_continue(const char *arg, void *data, unsigned sz)
 {
 	start_default_kernel();
@@ -419,12 +429,14 @@ void aboot_register_commands(void)
 	fastboot_register("oem", cmd_oem);
 	fastboot_register("boot", cmd_boot);
 	fastboot_register("reboot", cmd_reboot);
+	fastboot_register("reboot-bootloader", cmd_reboot_bl);
 	fastboot_register("erase:", cmd_erase);
 	fastboot_register("flash:", cmd_flash);
 	fastboot_register("continue", cmd_continue);
 
 	fastboot_publish("product", DEVICE_NAME);
 	fastboot_publish("kernel", "droidboot");
+	fastboot_publish("droidboot", DROIDBOOT_VERSION);
 
 	flash_cmds = hashmapCreate(8, strhash, strcompare);
 	if (!flash_cmds) {

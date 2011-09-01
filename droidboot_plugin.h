@@ -23,5 +23,8 @@ typedef int (*flash_func)(void *data, unsigned sz);
 
 int aboot_register_flash_cmd(char *key, flash_func callback);
 
+/* publish a variable readable by the built-in getvar command */
+void fastboot_publish(const char *name, const char *value);
+
 #endif
 

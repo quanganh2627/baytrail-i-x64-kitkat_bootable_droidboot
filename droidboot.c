@@ -63,6 +63,8 @@ static void *scratch;
  * that gets cleared */
 static int autoboot_enabled = USE_AUTOBOOT;
 
+#define AUTOBOOT_FRAC   (1.0 / AUTOBOOT_DELAY_SECS)
+
 static void *autoboot_thread(void *arg)
 {
 	unsigned int sleep_time = *((unsigned int *)arg);
@@ -70,13 +72,18 @@ static void *autoboot_thread(void *arg)
 	if (!autoboot_enabled)
 		return NULL;
 
+	ui_show_progress(1.0, AUTOBOOT_DELAY_SECS);
+
 	for (; sleep_time; sleep_time--) {
 		LOGI("Automatic boot in %d seconds.\n", sleep_time);
 		sleep(1);
-		if (!autoboot_enabled)
+		if (!autoboot_enabled) {
+			ui_reset_progress();
 			return NULL;
+		}
 	}
-
+	ui_reset_progress();
+	ui_show_text();
 	start_default_kernel();
 
 	/* can't get here */
@@ -213,11 +220,11 @@ void start_default_kernel(void)
 	char *cmdline_path;
 	char *ramdisk_path;
 
-	ptn = find_part(disk_info, "boot");
+	ptn = find_part(disk_info, "2ndstageboot");
 
 	mountpoint = mount_partition(ptn);
 	if (!mountpoint) {
-		LOGE("Can't mount boot partition!\n");
+		LOGE("Can't mount second-stage boot partition!\n");
 		return;
 	}
 

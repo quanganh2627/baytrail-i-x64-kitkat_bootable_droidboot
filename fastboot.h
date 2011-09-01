@@ -39,9 +39,6 @@ int fastboot_init(void *xfer_buffer, unsigned max);
 void fastboot_register(const char *prefix,
                        void (*handle)(const char *arg, void *data, unsigned size));
 
-/* publish a variable readable by the built-in getvar command */
-void fastboot_publish(const char *name, const char *value);
-
 /* Fetch the value of a fastboot_publish variable */
 const char *fastboot_getvar(const char *name);
 
