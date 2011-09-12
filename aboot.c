@@ -45,6 +45,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include <cutils/android_reboot.h>
 #include <cutils/hashmap.h>
 #include <diskconfig/diskconfig.h>
 
@@ -156,6 +157,61 @@ out:
 		free(cmd);
 }
 
+
+static void do_sw_update(void *data, unsigned sz)
+{
+	struct part_info *cacheptn, *dataptn;
+	const char *cmdline = "--update_package=/data/droidboot.update.zip";
+
+	cacheptn = find_part(disk_info, "cache");
+	if (!cacheptn) {
+		LOGE("Couldn't find cache partition. Is your "
+				"disk_layout.conf valid?");
+		return;
+	}
+	dataptn = find_part(disk_info, "userdata");
+	if (!dataptn) {
+		LOGE("Couldn't find userdata partition. Is your "
+				"disk_layout.conf valid?");
+		return;
+	}
+	if (mount_partition(cacheptn)) {
+		LOGE("Couldn't mount cache partition. Is it formatted?");
+		return;
+	}
+	if (mount_partition(dataptn)) {
+		LOGE("Couldn't mount userdata partition. Is it formatted?");
+		goto out;
+	}
+
+	if (mkdir("/mnt/cache/recovery", 0777) && errno != EEXIST) {
+		LOGE("Couldn't create /mnt/cache/recovery directory");
+		goto out;
+	}
+
+	/* Remove any old copy hanging around */
+	unlink("/mnt/userdata/droidboot.update.zip");
+
+	/* Once the update is applied this file is deleted */
+	if (named_file_write("/mnt/userdata/droidboot.update.zip", data, sz)) {
+		LOGE("Couldn't write update package to cache partition.");
+		goto out;
+	}
+
+	if (named_file_write("/mnt/cache/recovery/command", (void *)cmdline,
+				strlen(cmdline))) {
+		LOGE("Couldn't create recovery console command file");
+		unlink("/mnt/userdata/droidboot.update.zip");
+		goto out;
+	}
+	LOGI("Rebooting into recovery console to apply update");
+	fastboot_okay("");
+	android_reboot(ANDROID_RB_RESTART2, 0, "recovery");
+out:
+	umount("/mnt/userdata");
+	umount("/mnt/cache");
+}
+
 /* Image command. Allows user to send a single gzipped file which
  * will be decompressed and written to a destination location. Typical
  * usage is to write to a disk device node, in order to flash a raw
@@ -165,11 +221,12 @@ out:
  *
  * "disk" : Write directly to the disk node specified in disk_layout.conf,
  *          whatever it is named there.
- * "osipX" : MFLD only, X is some integer. update OS image with a
- *           stitched OS image. The provided image must have exactly
- *           one OSII record in it.
- * <name> : Lookup the named partition in disk_layout.conf and write to
- *          its corresponding device node
+ * "update" : Writes a signed OTA Update package to the data partition,
+ *            writes the command file for the recovery console, and
+ *            reboots into recovery console to apply the update
+ * <name> : Look in the flash_cmds table and execute the callback function.
+ *          If not found, lookup the named partition in disk_layout.conf 
+ *          and write to its corresponding device node
  */
 static void cmd_flash(const char *part_name, void *data, unsigned sz)
 {
@@ -186,6 +243,10 @@ static void cmd_flash(const char *part_name, void *data, unsigned sz)
 
 	if (!strcmp(part_name, "disk")) {
 		device = disk_info->device;
+	} else if (!strcmp(part_name, "update")) {
+		do_sw_update(data, sz);
+		fastboot_fail("could not stage software update package");
+		return;
 	} else if ( (cb = hashmapGet(flash_cmds, (char *)part_name)) ) {
 		/* Use our table of flash functions registered by platform
 		 * specific plugin libraries */
@@ -399,12 +460,7 @@ static void cmd_reboot(const char *arg, void *data, unsigned sz)
 	fastboot_okay("");
 	sync();
 	LOGI("Rebooting!\n");
-	/* The "android" parameter is recognized on MFLD devices
-	 * as a directive to the OSIP driver to un-corrupt the OSIP
-	 * header so that the Android kernel will be started by the FW
-	 * instead of droidboot.  Other devices ignore it. */
-	__reboot(LINUX_REBOOT_MAGIC1, LINUX_REBOOT_MAGIC2,
-			LINUX_REBOOT_CMD_RESTART2, "android");
+	android_reboot(ANDROID_RB_RESTART, 0, 0);
 	LOGE("Reboot failed");
 }
 
@@ -413,8 +469,7 @@ static void cmd_reboot_bl(const char *arg, void *data, unsigned sz)
 	fastboot_okay("");
 	sync();
 	LOGI("Restarting Droidboot...\n");
-	__reboot(LINUX_REBOOT_MAGIC1, LINUX_REBOOT_MAGIC2,
-			LINUX_REBOOT_CMD_RESTART2, "fastboot");
+	android_reboot(ANDROID_RB_RESTART2, 0, "fastboot");
 	LOGE("Reboot failed");
 }
 

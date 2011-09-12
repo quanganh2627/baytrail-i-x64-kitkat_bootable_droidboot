@@ -37,6 +37,7 @@
 
 #include "droidboot.h"
 #include "droidboot_ui.h"
+#include "fastboot.h"
 
 /* todo: give lk strtoul and nuke this */
 static unsigned hex2unsigned(const char *x)

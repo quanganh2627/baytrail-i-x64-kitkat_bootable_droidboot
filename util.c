@@ -41,6 +41,7 @@
 
 #include <diskconfig/diskconfig.h>
 
+#include "fastboot.h"
 #include "droidboot.h"
 #include "droidboot_ui.h"
 
@@ -50,16 +51,40 @@ void die(void)
 	exit(1);
 }
 
+int named_file_write(const char *filename, const unsigned char *what,
+		size_t sz)
+{
+	int fd;
+	int ret;
+	fd = open(filename, O_RDWR | O_CREAT);
+	if (fd < 0) {
+		printf("file_write: Can't open file %s: %s\n",
+				filename, strerror(errno));
+		return -1;
+	}
 
-/* Mount a specified partition, returning a string indicating where
- * it was mounted. This string must be eventually freed */
-char *mount_partition(struct part_info *ptn)
+	while (sz) {
+		ret = write(fd, what, sz);
+		if (ret <= 0 && errno != EINTR) {
+			printf("file_write: Failed to write to %s: %s\n",
+					filename, strerror(errno));
+			close(fd);
+			return -1;
+		}
+		what += ret;
+		sz -= ret;
+	}
+	close(fd);
+	return 0;
+}
+
+int mount_partition(struct part_info *ptn)
 {
 	char *fstype;
 	char *pdevice;
 	char *mountpoint = NULL;
-	int failed = 1;
 	int ret;
+	int status = -1;
 
 	pdevice = find_part_device(disk_info, ptn->name);
 	if (!pdevice) {
@@ -78,7 +103,7 @@ char *mount_partition(struct part_info *ptn)
 		fstype = "msdos";
 	}
 
-	ret = asprintf(&mountpoint, "/mnt/%s", strrchr(pdevice, '/') + 1);
+	ret = asprintf(&mountpoint, "/mnt/%s", ptn->name);
 	if (ret < 0) {
 		LOGPERROR("asprintf");
 		goto out;
@@ -97,18 +122,15 @@ char *mount_partition(struct part_info *ptn)
 		LOGPERROR("mount");
 		goto out;
 	}
-
-	failed = 0;
+	status = 0;
 out:
-	if (failed && mountpoint) {
+	if (mountpoint)
 		free(mountpoint);
-		mountpoint = NULL;
-	}
 
 	if (pdevice)
 		free(pdevice);
 
-	return mountpoint;
+	return status;
 }
 
 
@@ -177,6 +199,7 @@ int kexec_linux(char *kernel, char *initrd, char *cmdline)
 		LOGE("kexec load failed! (ret=%d)\n", ret);
 		return -1;
 	}
+	fastboot_okay("");
 
 	/* Pull the trigger */
 	snprintf(kexec_cmd, sizeof(kexec_cmd),

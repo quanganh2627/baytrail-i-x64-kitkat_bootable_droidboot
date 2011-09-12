@@ -25,6 +25,6 @@ extern struct disk_info *disk_info;
 #endif
 
 #define DISK_CONFIG_LOCATION	"/system/etc/disk_layout.conf"
-#define DROIDBOOT_VERSION	"0.6"
+#define DROIDBOOT_VERSION	"0.7"
 
 #endif

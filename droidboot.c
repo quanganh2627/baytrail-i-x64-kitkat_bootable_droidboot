@@ -69,9 +69,6 @@ static void *autoboot_thread(void *arg)
 {
 	unsigned int sleep_time = *((unsigned int *)arg);
 
-	if (!autoboot_enabled)
-		return NULL;
-
 	ui_show_progress(1.0, AUTOBOOT_DELAY_SECS);
 
 	for (; sleep_time; sleep_time--) {
@@ -86,7 +83,6 @@ static void *autoboot_thread(void *arg)
 	ui_show_text();
 	start_default_kernel();
 
-	/* can't get here */
 	return NULL;
 }
 
@@ -215,37 +211,18 @@ void disable_autoboot(void)
 void start_default_kernel(void)
 {
 	struct part_info *ptn;
-	char *mountpoint;
-	char *kernel_path;
-	char *cmdline_path;
-	char *ramdisk_path;
-
 	ptn = find_part(disk_info, "2ndstageboot");
 
-	mountpoint = mount_partition(ptn);
-	if (!mountpoint) {
+	if (mount_partition(ptn)) {
 		LOGE("Can't mount second-stage boot partition!\n");
 		return;
 	}
 
-	if (asprintf(&kernel_path, "%s/kernel", mountpoint) < 0) {
-		LOGPERROR("asprintf");
-		die();
-	}
-
-	if (asprintf(&ramdisk_path, "%s/ramdisk.img", mountpoint) < 0) {
-		LOGPERROR("asprintf");
-		die();
-	}
-
-	if (asprintf(&cmdline_path, "%s/cmdline", mountpoint) < 0) {
-		LOGPERROR("asprintf");
-		die();
-	}
-
-	if (kexec_linux(kernel_path, ramdisk_path, cmdline_path))
-		die();
-	/* Can't get here */
+	kexec_linux("/mnt/2ndstageboot/kernel",
+			"/mnt/2ndstageboot/ramdisk.img",
+			"/mnt/2ndstageboot/cmdline");
+	/* Failed if we get here */
+	LOGE("kexec failed");
 }
 
 
@@ -270,14 +247,16 @@ int main(int argc, char **argv)
 
 	aboot_register_commands();
 
-	if (pthread_create(&thr, NULL, autoboot_thread,
-				&autoboot_delay_secs)) {
-		LOGPERROR("pthread_create");
-		die();
-	}
-	if (pthread_create(&thr, NULL, input_listener_thread, NULL)) {
-		LOGPERROR("pthread_create");
-		die();
+	if (autoboot_enabled) {
+		if (pthread_create(&thr, NULL, autoboot_thread,
+					&autoboot_delay_secs)) {
+			LOGPERROR("pthread_create");
+			die();
+		}
+		if (pthread_create(&thr, NULL, input_listener_thread, NULL)) {
+			LOGPERROR("pthread_create");
+			die();
+		}
 	}
 
 	scratch = malloc(SCRATCH_SIZE);
