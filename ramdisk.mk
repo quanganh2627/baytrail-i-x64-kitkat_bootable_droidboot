@@ -15,9 +15,6 @@ droidboot_modules := \
 	ash \
 	systembinsh \
 	toolbox \
-	logcat \
-	strace \
-	netcfg \
 	libdiskconfig \
 	libext2fs \
 	libext2_com_err \
@@ -27,19 +24,11 @@ droidboot_modules := \
 	libext2_profile \
 	libext4_utils \
 	libusbhost \
-	libssl \
 	libz \
 	resize2fs \
 	tune2fs \
-	mke2fs \
 	e2fsck \
 	make_ext4fs \
-	editdisklbl \
-	nc \
-	scp \
-	ssh \
-	tcpdump \
-	dosfstools \
 	gzip \
 	kexec \
 	droidboot \
