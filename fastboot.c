@@ -34,54 +34,12 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <pthread.h>
 
 #include "droidboot.h"
 #include "droidboot_ui.h"
 #include "fastboot.h"
-
-/* todo: give lk strtoul and nuke this */
-static unsigned hex2unsigned(const char *x)
-{
-	unsigned n = 0;
-
-	while (*x) {
-		switch (*x) {
-		case '0':
-		case '1':
-		case '2':
-		case '3':
-		case '4':
-		case '5':
-		case '6':
-		case '7':
-		case '8':
-		case '9':
-			n = (n << 4) | (*x - '0');
-			break;
-		case 'a':
-		case 'b':
-		case 'c':
-		case 'd':
-		case 'e':
-		case 'f':
-			n = (n << 4) | (*x - 'a' + 10);
-			break;
-		case 'A':
-		case 'B':
-		case 'C':
-		case 'D':
-		case 'E':
-		case 'F':
-			n = (n << 4) | (*x - 'A' + 10);
-			break;
-		default:
-			return n;
-		}
-		x++;
-	}
-
-	return n;
-}
+#include "util.h"
 
 struct fastboot_cmd {
 	struct fastboot_cmd *next;
@@ -166,9 +124,8 @@ static int usb_read(void *_buf, unsigned len)
 		xfer = (len > 4096) ? 4096 : len;
 
 		r = read(fb_fp, buf, xfer);
-		LOGV("read returns %d\n", r);
 		if (r < 0) {
-			LOGE("read failed\n");
+			LOGPERROR("read");
 			goto oops;
 		}
 
@@ -185,7 +142,6 @@ static int usb_read(void *_buf, unsigned len)
 
 oops:
 	fastboot_state = STATE_ERROR;
-	LOGE("usb_read faled: asked for %d and got %d\n", len, r);
 	return -1;
 }
 
@@ -196,11 +152,9 @@ static int usb_write(void *buf, unsigned len)
 	if (fastboot_state == STATE_ERROR)
 		goto oops;
 
-	LOGV("usb_write %d\n", len);
 	r = write(fb_fp, buf, len);
-	LOGV("write returns %d\n", r);
 	if (r < 0) {
-		LOGE("write failed\n");
+		LOGPERROR("write");
 		goto oops;
 	}
 
@@ -257,9 +211,10 @@ static void cmd_getvar(const char *arg, void *data, unsigned sz)
 static void cmd_download(const char *arg, void *data, unsigned sz)
 {
 	char response[64];
-	unsigned len = hex2unsigned(arg);
+	unsigned len;
 	int r;
 
+	len = strtoul(arg, NULL, 16);
 	LOGD("fastboot: cmd_download %d bytes\n", len);
 
 	download_size = 0;
@@ -303,8 +258,10 @@ again:
 			disable_autoboot();
 			fastboot_state = STATE_COMMAND;
 			ui_show_indeterminate_progress();
+			pthread_mutex_lock(&action_mutex);
 			cmd->handle((const char *)buffer + cmd->prefix_len,
 				    (void *)download_base, download_size);
+			pthread_mutex_unlock(&action_mutex);
 			ui_reset_progress();
 			if (fastboot_state == STATE_COMMAND)
 				fastboot_fail("unknown reason");
@@ -341,11 +298,16 @@ static int fastboot_handler(void *arg)
 	return 0;
 }
 
-int fastboot_init(void *base, unsigned size)
+int fastboot_init(unsigned size)
 {
 	LOGV("fastboot_init()\n");
 	download_max = size;
-	download_base = base;
+	download_base = malloc(size);
+	if (download_base == NULL) {
+		LOGE("scratch malloc of %u failed in fastboot."
+			" Unable to continue.\n\n", size);
+		die();
+	}
 
 	fastboot_register("getvar:", cmd_getvar);
 	fastboot_register("download:", cmd_download);

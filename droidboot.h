@@ -3,6 +3,8 @@
 
 #include <errno.h>
 #include <string.h>
+#include <stdint.h>
+#include <pthread.h>
 
 #define MEGABYTE	(1024 * 1024)
 
@@ -12,6 +14,10 @@ void start_default_kernel(void);
 /* global libdiskconfig data structure representing the intended layout of
  * the internal disk, as read from /etc/disk_layout.conf */
 extern struct disk_info *disk_info;
+
+/* Serialize all disk operations. Grabbed by fastboot any time it is
+ * performing a command, and also any worker thread handlers */
+extern pthread_mutex_t action_mutex;
 
 /* Some configuration settings */
 #ifndef USE_AUTOBOOT
@@ -25,6 +31,6 @@ extern struct disk_info *disk_info;
 #endif
 
 #define DISK_CONFIG_LOCATION	"/system/etc/disk_layout.conf"
-#define DROIDBOOT_VERSION	"0.7"
+#define DROIDBOOT_VERSION       "01.00"
 
 #endif

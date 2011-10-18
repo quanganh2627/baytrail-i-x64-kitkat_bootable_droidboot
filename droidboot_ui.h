@@ -27,7 +27,7 @@
 #define LOGE(...) do { \
 	ui_print("E:" __VA_ARGS__); \
 	ui_set_background(BACKGROUND_ICON_ERROR); \
-	ui_show_text(); \
+	ui_show_text(1); \
 	} while (0)
 #define LOGW(...) ui_print("W:" __VA_ARGS__)
 #define LOGI(...) ui_print("I:" __VA_ARGS__)
@@ -69,7 +69,7 @@ void ui_show_indeterminate_progress();
 // Hide and reset the progress bar.
 void ui_reset_progress();
 
-void ui_show_text();
+void ui_show_text(int visible);
 
 typedef struct {
 	// number of frames in indeterminate progress bar animation
@@ -103,7 +103,7 @@ typedef struct {
 #define ui_set_progress(x)			do { } while (0)
 #define ui_show_indeterminate_progress()	do { } while (0)
 #define ui_reset_progress()			do { } while (0)
-#define ui_show_text()				do { } while (0)
+#define ui_show_text(x)				do { } while (0)
 
 #endif /* USE_GUI */
 

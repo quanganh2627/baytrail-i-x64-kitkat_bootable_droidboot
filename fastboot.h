@@ -29,7 +29,7 @@
 #ifndef __APP_FASTBOOT_H
 #define __APP_FASTBOOT_H
 
-int fastboot_init(void *xfer_buffer, unsigned max);
+int fastboot_init(unsigned buffer_size);
 
 /* register a command handler 
  * - command handlers will be called if their prefix matches

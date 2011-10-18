@@ -31,7 +31,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
-#include <linux/ext3_fs.h>
+
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -64,7 +64,6 @@
 #define CMD_PARTITION		"partition"
 #define CMD_SHOWTEXT		"showtext"
 
-#define EXT_SUPERBLOCK_OFFSET	1024
 
 Hashmap *flash_cmds;
 
@@ -108,8 +107,6 @@ int aboot_register_flash_cmd(char *key, flash_func callback)
 static void cmd_erase(const char *part_name, void *data, unsigned sz)
 {
 	struct part_info *ptn;
-	char *pdevice = NULL;
-	char *cmd = NULL;
 
 	LOGI("%s: %s\n", __func__, part_name);
 	ptn = find_part(disk_info, part_name);
@@ -119,97 +116,38 @@ static void cmd_erase(const char *part_name, void *data, unsigned sz)
 	}
 
 	LOGD("Erasing %s.\n", part_name);
+	if (erase_partition(ptn))
+		fastboot_fail("Can't erase partition");
+	else
+		fastboot_okay("");
 
-	pdevice = find_part_device(disk_info, ptn->name);
-	if (!pdevice) {
-		fastboot_fail("find_part_device failed!");
-		die();
-	}
-	LOGV("destination device: %s\n", pdevice);
-	if (!is_valid_blkdev(pdevice)) {
-		fastboot_fail("invalid destination node. partition disks?");
-		goto out;
-	}
-
-	switch (ptn->type) {
-	case PC_PART_TYPE_LINUX:
-		if (asprintf(&cmd, "/system/bin/make_ext4fs -L %s %s",
-					ptn->name, pdevice) < 0) {
-			fastboot_fail("memory allocation error");
-			cmd = NULL;
-			goto out;
-		}
-		if (execute_command(cmd)) {
-			fastboot_fail("make_ext4fs failed");
-			goto out;
-		}
-		break;
-	default:
-		fastboot_fail("Unsupported partition type");
-		goto out;
-	}
-
-	fastboot_okay("");
-out:
-	if (pdevice)
-		free(pdevice);
-	if (cmd)
-		free(cmd);
 }
 
 
 static void do_sw_update(void *data, unsigned sz)
 {
-	struct part_info *cacheptn, *dataptn;
-	const char *cmdline = "--update_package=/data/droidboot.update.zip";
+	struct part_info *dataptn;
 
-	cacheptn = find_part(disk_info, "cache");
-	if (!cacheptn) {
-		LOGE("Couldn't find cache partition. Is your "
-				"disk_layout.conf valid?");
-		return;
-	}
 	dataptn = find_part(disk_info, "userdata");
 	if (!dataptn) {
 		LOGE("Couldn't find userdata partition. Is your "
 				"disk_layout.conf valid?");
 		return;
 	}
-	if (mount_partition(cacheptn)) {
-		LOGE("Couldn't mount cache partition. Is it formatted?");
+	if (mount_partition(dataptn)) {
+		LOGE("Couldn't mount userdata partition");
 		return;
 	}
-	if (mount_partition(dataptn)) {
-		LOGE("Couldn't mount userdata partition. Is it formatted?");
-		goto out;
-	}
-
-	if (mkdir("/mnt/cache/recovery", 0777) && errno != EEXIST) {
-		LOGE("Couldn't create /mnt/cache/recovery directory");
-		goto out;
-	}
-
 	/* Remove any old copy hanging around */
 	unlink("/mnt/userdata/droidboot.update.zip");
-
 	/* Once the update is applied this file is deleted */
 	if (named_file_write("/mnt/userdata/droidboot.update.zip", data, sz)) {
-		LOGE("Couldn't write update package to cache partition.");
-		goto out;
+		LOGE("Couldn't write update package to data partition.");
+		unmount_partition(dataptn);
+		return;
 	}
-
-	if (named_file_write("/mnt/cache/recovery/command", (void *)cmdline,
-				strlen(cmdline))) {
-		LOGE("Couldn't create recovery console command file");
-		unlink("/mnt/userdata/droidboot.update.zip");
-		goto out;
-	}
-	LOGI("Rebooting into recovery console to apply update");
-	fastboot_okay("");
-	android_reboot(ANDROID_RB_RESTART2, 0, "recovery");
-out:
-	umount("/mnt/userdata");
-	umount("/mnt/cache");
+	unmount_partition(dataptn);
+	apply_sw_update("/data/droidboot.update.zip", 1);
 }
 
 /* Image command. Allows user to send a single gzipped file which
@@ -330,27 +268,9 @@ static void cmd_flash(const char *part_name, void *data, unsigned sz)
 	 * run some disk checks and resize it, ptn->type isn't sufficient
 	 * information */
 	if (ptn && ptn->type == PC_PART_TYPE_LINUX) {
-		/* EXT4 uses same superblock struct and s_magic */
-		struct ext3_super_block superblock;
-		int fd = open(device, O_RDWR);
-		if (fd < 0) {
-			fastboot_fail("could not open device node");
+		if (check_ext_superblock(ptn, &do_ext_checks)) {
+			fastboot_fail("couldn't check superblock");
 			goto out;
-		}
-		if (lseek(fd, EXT_SUPERBLOCK_OFFSET, SEEK_SET) !=
-				EXT_SUPERBLOCK_OFFSET) {
-			fastboot_fail("could not seek to superblock offset");
-			close(fd);
-			goto out;
-		}
-		if (read(fd, &superblock, sizeof(superblock)) != sizeof(superblock)) {
-			fastboot_fail("couldn't read superblock");
-			close(fd);
-			goto out;
-		}
-		close(fd);
-		if (EXT3_SUPER_MAGIC == superblock.s_magic) {
-			do_ext_checks = 1;
 		}
 	}
 	if (do_ext_checks) {
@@ -442,7 +362,7 @@ static void cmd_oem(const char *arg, void *data, unsigned sz)
 			fastboot_okay("");
 	} else if (strncmp(command, CMD_SHOWTEXT,
 				strlen(CMD_SHOWTEXT)) == 0) {
-		ui_show_text();
+		ui_show_text(1);
 		fastboot_okay("");
 	} else {
 		fastboot_fail("unknown OEM command");
@@ -496,7 +416,7 @@ void aboot_register_commands(void)
 	flash_cmds = hashmapCreate(8, strhash, strcompare);
 	if (!flash_cmds) {
 		LOGE("Memory allocation error");
-		exit(1);
+		die();
 	}
 	register_aboot_plugins();
 }

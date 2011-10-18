@@ -28,7 +28,6 @@ droidboot_modules := \
 	resize2fs \
 	tune2fs \
 	e2fsck \
-	make_ext4fs \
 	gzip \
 	kexec \
 	droidboot \
@@ -60,6 +59,9 @@ droidboot_initrc := $(LOCAL_PATH)/init.rc
 DROIDBOOT_RAMDISK := $(droidboot_out)/ramdisk-droidboot.img.gz
 DROIDBOOT_BOOTIMAGE := $(PRODUCT_OUT)/droidboot.img
 
+# Used by Droidboot to know what device the SD card is on for OTA
+recovery_fstab := $(TARGET_DEVICE_DIR)/recovery.fstab
+
 # NOTE: You'll need to pass f_adb.fastboot=1 on the kernel command line
 # so that the ADB driver exports the right protocol
 $(DROIDBOOT_RAMDISK): \
@@ -86,6 +88,7 @@ $(DROIDBOOT_RAMDISK): \
 ifneq ($(DROIDBOOT_NO_GUI),true)
 	$(hide) cp -rf $(droidboot_resources_common) $(droidboot_root_out)/
 endif
+	$(hide) cp -f $(recovery_fstab) $(droidboot_etc_out)/recovery.fstab
 	$(hide) $(call droidboot-copy-files,$(TARGET_OUT),$(droidboot_system_out))
 	$(hide) cp -f $(TARGET_DISK_LAYOUT_CONFIG) $(droidboot_etc_out)/disk_layout.conf
 	$(hide) $(MKBOOTFS) $(droidboot_root_out) | gzip > $@
