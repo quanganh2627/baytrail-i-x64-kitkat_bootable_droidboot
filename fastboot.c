@@ -39,7 +39,7 @@
 #include "droidboot.h"
 #include "droidboot_ui.h"
 #include "fastboot.h"
-#include "util.h"
+#include "droidboot_util.h"
 
 struct fastboot_cmd {
 	struct fastboot_cmd *next;
@@ -119,13 +119,13 @@ static int usb_read(void *_buf, unsigned len)
 	if (fastboot_state == STATE_ERROR)
 		goto oops;
 
-	LOGV("usb_read %d\n", len);
+	pr_verbose("usb_read %d\n", len);
 	while (len > 0) {
 		xfer = (len > 4096) ? 4096 : len;
 
 		r = read(fb_fp, buf, xfer);
 		if (r < 0) {
-			LOGPERROR("read");
+			pr_perror("read");
 			goto oops;
 		}
 
@@ -154,7 +154,7 @@ static int usb_write(void *buf, unsigned len)
 
 	r = write(fb_fp, buf, len);
 	if (r < 0) {
-		LOGPERROR("write");
+		pr_perror("write");
 		goto oops;
 	}
 
@@ -184,13 +184,13 @@ void fastboot_ack(const char *code, const char *reason)
 
 void fastboot_fail(const char *reason)
 {
-	LOGE("ack FAIL %s", reason);
+	pr_error("ack FAIL %s", reason);
 	fastboot_ack("FAIL", reason);
 }
 
 void fastboot_okay(const char *info)
 {
-	LOGD("ack OKAY %s", info);
+	pr_debug("ack OKAY %s", info);
 	fastboot_ack("OKAY", info);
 }
 
@@ -198,7 +198,7 @@ static void cmd_getvar(const char *arg, void *data, unsigned sz)
 {
 	struct fastboot_var *var;
 
-	LOGD("fastboot: cmd_getvar %s\n", arg);
+	pr_debug("fastboot: cmd_getvar %s\n", arg);
 	for (var = varlist; var; var = var->next) {
 		if (!strcmp(var->name, arg)) {
 			fastboot_okay(var->value);
@@ -215,7 +215,7 @@ static void cmd_download(const char *arg, void *data, unsigned sz)
 	int r;
 
 	len = strtoul(arg, NULL, 16);
-	LOGD("fastboot: cmd_download %d bytes\n", len);
+	pr_debug("fastboot: cmd_download %d bytes\n", len);
 
 	download_size = 0;
 	if (len > download_max) {
@@ -229,7 +229,7 @@ static void cmd_download(const char *arg, void *data, unsigned sz)
 
 	r = usb_read(download_base, len);
 	if ((r < 0) || ((unsigned int)r != len)) {
-		LOGE("fastboot: cmd_download errro only got %d bytes\n", r);
+		pr_error("fastboot: cmd_download errro only got %d bytes\n", r);
 		fastboot_state = STATE_ERROR;
 		return;
 	}
@@ -241,7 +241,7 @@ static void fastboot_command_loop(void)
 {
 	struct fastboot_cmd *cmd;
 	int r;
-	LOGD("fastboot: processing commands\n");
+	pr_debug("fastboot: processing commands\n");
 
 again:
 	while (fastboot_state != STATE_ERROR) {
@@ -250,7 +250,7 @@ again:
 		if (r < 0)
 			break;
 		buffer[r] = 0;
-		LOGD("fastboot got command: %s\n", buffer);
+		pr_debug("fastboot got command: %s\n", buffer);
 
 		for (cmd = cmdlist; cmd; cmd = cmd->next) {
 			if (memcmp(buffer, cmd->prefix, cmd->prefix_len))
@@ -267,12 +267,12 @@ again:
 				fastboot_fail("unknown reason");
 			goto again;
 		}
-		LOGE("unknown command '%s'\n", buffer);
+		pr_error("unknown command '%s'\n", buffer);
 		fastboot_fail("unknown command");
 
 	}
 	fastboot_state = STATE_OFFLINE;
-	LOGE("fastboot: oops!\n");
+	pr_error("fastboot: oops!\n");
 }
 
 static int fastboot_handler(void *arg)
@@ -300,11 +300,11 @@ static int fastboot_handler(void *arg)
 
 int fastboot_init(unsigned size)
 {
-	LOGV("fastboot_init()\n");
+	pr_verbose("fastboot_init()\n");
 	download_max = size;
 	download_base = malloc(size);
 	if (download_base == NULL) {
-		LOGE("scratch malloc of %u failed in fastboot."
+		pr_error("scratch malloc of %u failed in fastboot."
 			" Unable to continue.\n\n", size);
 		die();
 	}

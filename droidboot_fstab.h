@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef FSTAB_H_
-#define FSTAB_H_
+#ifndef DROIDBOOT_FSTAB_H_
+#define DROIDBOOT_FSTAB_H_
 typedef struct {
     const char* mount_point;  // eg. "/cache".  must live in the root directory.
 

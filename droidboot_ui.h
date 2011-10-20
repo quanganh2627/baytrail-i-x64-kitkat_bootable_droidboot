@@ -21,18 +21,25 @@
 #ifndef _DROIDBOOT_UI_H_
 #define _DROIDBOOT_UI_H_
 
-#define LOGPERROR(x)	LOGE("%s failed: %s", x, strerror(errno))
+#define pr_perror(x)	pr_error("%s failed: %s", x, strerror(errno))
+
+#define VERBOSE_DEBUG 0
 
 #ifdef USE_GUI
-#define LOGE(...) do { \
-	ui_print("E:" __VA_ARGS__); \
+#define pr_error(...) do { \
+	ui_print("E: " __VA_ARGS__); \
 	ui_set_background(BACKGROUND_ICON_ERROR); \
 	ui_show_text(1); \
 	} while (0)
-#define LOGW(...) ui_print("W:" __VA_ARGS__)
-#define LOGI(...) ui_print("I:" __VA_ARGS__)
-#define LOGV(...) do {} while (0)
-#define LOGD(...) ui_print("D:" __VA_ARGS__)
+#define pr_warning(...)		ui_print("W: " __VA_ARGS__)
+#define pr_info(...)		ui_print("I: " __VA_ARGS__)
+#if VERBOSE_DEBUG
+/* Serial console only */
+#define pr_verbose(...)		printf("V: " __VA_ARGS__)
+#else
+#define pr_verbose(...)		do { } while (0)
+#endif
+#define pr_debug(...)		ui_print("D: " __VA_ARGS__)
 
 // Initialize the graphics system.
 void ui_init();
@@ -96,8 +103,18 @@ typedef struct {
 #endif
 #include <cutils/log.h>
 
+#define pr_error(...)				printf("E: " __VA_ARGS__)
+#define pr_debug(...)				printf("D: " __VA_ARGS__)
+#define pr_info(...)				printf("I: " __VA_ARGS__)
+#define pr_warning(...)				printf("W: " __VA_ARGS__)
+#if VERBOSE_DEBUG
+#define pr_verbose(...)				printf("V: " __VA_ARGS__)
+#else
+#define pr_verbose(...)				do { } while (0)
+#endif
+
 #define ui_init()				do { } while (0)
-#define ui_print				LOGI
+#define ui_print				pr_info
 #define ui_set_background(x)			do { } while (0)
 #define ui_show_progress(x, y)			do { } while (0)
 #define ui_set_progress(x)			do { } while (0)

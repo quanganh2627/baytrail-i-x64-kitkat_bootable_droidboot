@@ -24,10 +24,10 @@
 #include <ctype.h>
 #include <stdio.h>
 
-#include "fstab.h"
+#include "droidboot_fstab.h"
 #include "droidboot.h"
 #include "droidboot_ui.h"
-#include "util.h"
+#include "droidboot_util.h"
 
 static int num_volumes = 0;
 static Volume *device_volumes = NULL;
@@ -41,7 +41,7 @@ static int parse_options(char *options, Volume * volume)
 		if (strncmp(option, "length=", 7) == 0) {
 			volume->length = strtoll(option + 7, NULL, 10);
 		} else {
-			LOGE("bad option \"%s\"\n", option);
+			pr_error("bad option \"%s\"\n", option);
 			return -1;
 		}
 	}
@@ -53,7 +53,7 @@ void load_volume_table()
 	int alloc = 2;
 	device_volumes = malloc(alloc * sizeof(Volume));
         if (!device_volumes) {
-		LOGPERROR("malloc");
+		pr_perror("malloc");
 		die();
 	}
 
@@ -65,10 +65,10 @@ void load_volume_table()
 	device_volumes[0].length = 0;
 	num_volumes = 1;
 
-	FILE *fstab = fopen("/etc/recovery.fstab", "r");
+	FILE *fstab = fopen(RECOVERY_FSTAB_LOCATION, "r");
 	if (fstab == NULL) {
-		LOGE("failed to open /etc/recovery.fstab (%s)\n",
-		     strerror(errno));
+		pr_error("failed to open %s (%s)\n",
+		     RECOVERY_FSTAB_LOCATION, strerror(errno));
 		return;
 	}
 
@@ -112,12 +112,12 @@ void load_volume_table()
 			device_volumes[num_volumes].length = 0;
 			if (parse_options(options, device_volumes + num_volumes)
 			    != 0) {
-				LOGE("skipping malformed recovery.fstab line: %s\n", buffer);
+				pr_error("skipping malformed recovery.fstab line: %s\n", buffer);
 			} else {
 				++num_volumes;
 			}
 		} else {
-			LOGE("skipping malformed recovery.fstab line: %s\n",
+			pr_error("skipping malformed recovery.fstab line: %s\n",
 			     buffer);
 		}
 	}

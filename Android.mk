@@ -53,11 +53,11 @@ junk := $(shell mkdir -p $(dir $(inc));\
 	        diff -q $(inc).temp $(inc).list 2>/dev/null || cp -f $(inc).temp $(inc).list)
 
 $(inc) : libs := $(TARGET_DROIDBOOT_LIBS)
-$(inc) : $(inc).list
+$(inc) : $(inc).list $(LOCAL_PATH)/Android.mk
 	$(hide) mkdir -p $(dir $@)
 	$(hide) echo "" > $@
 	$(hide) $(foreach lib,$(libs),echo "extern void $(lib)_init(void);" >> $@)
-	$(hide) echo "void register_aboot_plugins() {" >> $@
+	$(hide) echo "void register_droidboot_plugins() {" >> $@
 	$(hide) $(foreach lib,$(libs),echo "  $(lib)_init();" >> $@)
 	$(hide) echo "}" >> $@
 

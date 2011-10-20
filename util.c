@@ -47,8 +47,8 @@
 #include "fastboot.h"
 #include "droidboot.h"
 #include "droidboot_ui.h"
-#include "util.h"
-#include "fstab.h"
+#include "droidboot_util.h"
+#include "droidboot_fstab.h"
 
 #define EXT_SUPERBLOCK_OFFSET	1024
 
@@ -58,7 +58,7 @@ extern int make_ext4fs_quick(const char *filename, int64_t len);
 
 void die(void)
 {
-	LOGE("droidboot has encountered an unrecoverable problem, exiting!\n");
+	pr_error("droidboot has encountered an unrecoverable problem, exiting!\n");
 	exit(1);
 }
 
@@ -71,22 +71,22 @@ int check_ext_superblock(struct part_info *ptn, int *sb_present)
 
 	device = find_part_device(disk_info, ptn->name);
 	if (!device) {
-		LOGE("Coudn't get device node");
+		pr_error("Coudn't get device node");
 		goto out;
 	}
 
 	fd = open(device, O_RDWR);
 	if (fd < 0) {
-		LOGE("could not open device node %s", device);
+		pr_error("could not open device node %s", device);
 		goto out;
 	}
 	if (lseek(fd, EXT_SUPERBLOCK_OFFSET, SEEK_SET) !=
 			EXT_SUPERBLOCK_OFFSET) {
-		LOGPERROR("lseek");
+		pr_perror("lseek");
 		goto out;
 	}
 	if (read(fd, &superblock, sizeof(superblock)) != sizeof(superblock)) {
-		LOGPERROR("read");
+		pr_perror("read");
 		goto out;
 	}
 	ret = 0;
@@ -131,18 +131,70 @@ int mount_partition_device(const char *device, const char *type, char *mountpoin
 
 	ret = mkdir(mountpoint, 0777);
 	if (ret && errno != EEXIST) {
-		LOGPERROR("mkdir");
+		pr_perror("mkdir");
 		return -1;
 	}
 
-	LOGD("Mounting %s (%s) --> %s\n", device,
+	pr_debug("Mounting %s (%s) --> %s\n", device,
 			type, mountpoint);
 	ret = mount(device, mountpoint, type, MS_SYNCHRONOUS, "");
 	if (ret && errno != EBUSY) {
-		LOGD("mount: %s", strerror(errno));
+		pr_debug("mount: %s", strerror(errno));
 		return -1;
 	}
 	return 0;
+}
+
+int ext4_filesystem_checks(const char *device)
+{
+	char *cmd_resize = NULL;
+	char *cmd_fsck = NULL;
+	char *cmd_tune = NULL;
+	int ret = -1;
+
+	/* run fdisk to make sure the partition is OK */
+	if (asprintf(&cmd_fsck, "/system/bin/e2fsck -C 0 -fy %s",
+				device) < 0) {
+		pr_error("memory allocation error");
+		goto out;
+	}
+	ret = execute_command(cmd_fsck);
+	if (ret < 0 || ret > 1) {
+		/* Return value of 1 is OK */
+		pr_error("fsck of filesystem failed");
+		goto out;
+	}
+
+	/* Resize the filesystem to fill the partition */
+	if (asprintf(&cmd_resize, "/system/bin/resize2fs -F %s",
+				device) < 0) {
+		pr_error("memory allocation error");
+		goto out;
+	}
+	if (execute_command(cmd_resize)) {
+		pr_error("could not resize filesystem "
+				"to fill disk");
+		goto out;
+	}
+
+
+	/* Set mount count to 1 so that 1st mount on boot doesn't
+	 * result in complaints */
+	if (asprintf(&cmd_tune, "/system/bin/tune2fs -C 1 %s",
+				device) < 0) {
+		pr_error("memory allocation error");
+		goto out;
+	}
+	if (execute_command(cmd_tune)) {
+		pr_error("tune2fs failed");
+		goto out;
+	}
+	ret = 0;
+out:
+	free(cmd_resize);
+	free(cmd_fsck);
+	free(cmd_tune);
+	return ret;
 }
 
 int mount_partition(struct part_info *ptn)
@@ -155,18 +207,18 @@ int mount_partition(struct part_info *ptn)
 
 	pdevice = find_part_device(disk_info, ptn->name);
 	if (!pdevice) {
-		LOGPERROR("malloc");
+		pr_perror("malloc");
 		goto out;
 	}
 	vol = volume_for_device(pdevice);
 	if (!vol) {
-		LOGE("%s not in recovery.fstab!", pdevice);
+		pr_error("%s not in recovery.fstab!", pdevice);
 		goto out;
 	}
 
 	ret = asprintf(&mountpoint, "/mnt/%s", ptn->name);
 	if (ret < 0) {
-		LOGPERROR("asprintf");
+		pr_perror("asprintf");
 		goto out;
 	}
 
@@ -185,7 +237,7 @@ int unmount_partition(struct part_info *ptn)
 
 	ret = asprintf(&mountpoint, "/mnt/%s", ptn->name);
 	if (ret < 0) {
-		LOGPERROR("asprintf");
+		pr_perror("asprintf");
 		return -1;
 	}
 	ret = umount(mountpoint);
@@ -201,28 +253,28 @@ int erase_partition(struct part_info *ptn)
 
 	pdevice = find_part_device(disk_info, ptn->name);
 	if (!pdevice) {
-		LOGE("find_part_device failed!");
+		pr_error("find_part_device failed!");
 		die();
 	}
 
 	if (!is_valid_blkdev(pdevice)) {
-		LOGE("invalid destination node. partition disks?");
+		pr_error("invalid destination node. partition disks?");
 		goto out;
 	}
 
 	vol = volume_for_device(pdevice);
 	if (!vol) {
-		LOGE("%s not in recovery.fstab!", pdevice);
+		pr_error("%s not in recovery.fstab!", pdevice);
 		goto out;
 	}
 
 	if (!strcmp(vol->fs_type, "ext4")) {
 		if (make_ext4fs_quick(vol->device, vol->length)) {
-		        LOGE("make_ext4fs failed");
+		        pr_error("make_ext4fs failed");
 			goto out;
 		}
 	} else {
-		LOGE("erase_partition: I can't handle fs_type %s",
+		pr_error("erase_partition: I can't handle fs_type %s",
 				vol->fs_type);
 		goto out;
 	}
@@ -236,16 +288,16 @@ int execute_command(const char *cmd)
 {
 	int ret;
 
-	LOGD("Executing: '%s'\n", cmd);
+	pr_debug("Executing: '%s'\n", cmd);
 	ret = system(cmd);
 
 	if (ret < 0) {
-		LOGE("Error while trying to execute '%s': %s\n",
+		pr_error("Error while trying to execute '%s': %s\n",
 			cmd, strerror(errno));
 		return ret;
 	}
 	ret = WEXITSTATUS(ret);
-	LOGD("Done executing '%s' (retval=%d)\n", cmd, ret);
+	pr_debug("Done executing '%s' (retval=%d)\n", cmd, ret);
 
 	return ret;
 }
@@ -255,11 +307,11 @@ int is_valid_blkdev(const char *node)
 {
 	struct stat statbuf;
 	if (stat(node, &statbuf)) {
-		LOGPERROR("stat");
+		pr_perror("stat");
 		return 0;
 	}
 	if (!S_ISBLK(statbuf.st_mode)) {
-		LOGE("%s is not a block device", node);
+		pr_error("%s is not a block device", node);
 		return 0;
 	}
 	return 1;
@@ -277,13 +329,13 @@ int kexec_linux(char *kernel, char *initrd, char *cmdline)
 	/* Read the kernel command line */
 	fd = open(cmdline, O_RDONLY);
 	if (fd < 0) {
-		LOGE("can't open %s: %s", cmdline,
+		pr_error("can't open %s: %s", cmdline,
 				strerror(errno));
 		return -1;
 	}
 	bytes_read = read(fd, cmdline_buf, sizeof(cmdline_buf) - 1);
 	if (bytes_read < 0) {
-		LOGPERROR("read");
+		pr_perror("read");
 		return -1;
 	}
 	cmdline_buf[bytes_read] = '\0';
@@ -294,7 +346,7 @@ int kexec_linux(char *kernel, char *initrd, char *cmdline)
 		kernel, initrd, cmdline_buf);
 	ret = execute_command(kexec_cmd);
 	if (ret != 0) {
-		LOGE("kexec load failed! (ret=%d)\n", ret);
+		pr_error("kexec load failed! (ret=%d)\n", ret);
 		return -1;
 	}
 	fastboot_okay("");
@@ -306,7 +358,7 @@ int kexec_linux(char *kernel, char *initrd, char *cmdline)
 	execute_command(kexec_cmd);
 
 	/* Shouldn't get here! */
-	LOGE("kexec failed!\n");
+	pr_error("kexec failed!\n");
 	return -1;
 }
 
@@ -317,33 +369,33 @@ void apply_sw_update(const char *location, int send_fb_ok)
 	char *cmdline;
 
 	if (asprintf(&cmdline, "--update_package=%s", location) < 0) {
-		LOGPERROR("asprintf");
+		pr_perror("asprintf");
 		return;
 	}
 
 	cacheptn = find_part(disk_info, "cache");
 	if (!cacheptn) {
-		LOGE("Couldn't find cache partition. Is your "
+		pr_error("Couldn't find cache partition. Is your "
 				"disk_layout.conf valid?");
 		goto out;
 	}
 	if (mount_partition(cacheptn)) {
-		LOGE("Couldn't mount cache partition.");
+		pr_error("Couldn't mount cache partition.");
 		goto out;
 	}
 
 	if (mkdir("/mnt/cache/recovery", 0777) && errno != EEXIST) {
-		LOGE("Couldn't create /mnt/cache/recovery directory");
+		pr_error("Couldn't create /mnt/cache/recovery directory");
 		goto out;
 	}
 
 	if (named_file_write("/mnt/cache/recovery/command", (void *)cmdline,
 				strlen(cmdline))) {
-		LOGE("Couldn't create recovery console command file");
+		pr_error("Couldn't create recovery console command file");
 		unlink("/mnt/userdata/droidboot.update.zip");
 		goto out;
 	}
-	LOGI("Rebooting into recovery console to apply update");
+	pr_info("Rebooting into recovery console to apply update");
 	if (send_fb_ok)
 		fastboot_okay("");
 	android_reboot(ANDROID_RB_RESTART2, 0, "recovery");

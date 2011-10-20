@@ -303,7 +303,7 @@ void ui_init(void)
     for (i = 0; BITMAPS[i].name != NULL; ++i) {
         int result = res_create_surface(BITMAPS[i].name, BITMAPS[i].surface);
         if (result < 0) {
-            LOGE("Missing bitmap %s\n(Code %d)\n", BITMAPS[i].name, result);
+            pr_error("Missing bitmap %s\n(Code %d)\n", BITMAPS[i].name, result);
         }
     }
 
@@ -315,7 +315,7 @@ void ui_init(void)
         sprintf(filename, "indeterminate%02d", i+1);
         int result = res_create_surface(filename, gProgressBarIndeterminate+i);
         if (result < 0) {
-            LOGE("Missing bitmap %s\n(Code %d)\n", filename, result);
+            pr_error("Missing bitmap %s\n(Code %d)\n", filename, result);
         }
     }
 
@@ -329,7 +329,7 @@ void ui_init(void)
             sprintf(filename, "icon_installing_overlay%02d", i+1);
             int result = res_create_surface(filename, gInstallationOverlay+i);
             if (result < 0) {
-                LOGE("Missing bitmap %s\n(Code %d)\n", filename, result);
+                pr_error("Missing bitmap %s\n(Code %d)\n", filename, result);
             }
         }
 
@@ -409,6 +409,7 @@ void ui_reset_progress()
     pthread_mutex_unlock(&gUpdateMutex);
 }
 
+/* FIXME: for some reason, this function is horribly slow */
 void ui_print(const char *fmt, ...)
 {
     char buf[256];

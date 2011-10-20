@@ -28,9 +28,6 @@ service console /system/bin/sh
     console
     disabled
 
-service logcat /system/bin/logcat
-    console
-
 on property:init.svc.droidboot=stopped
     wait 2
     start console
