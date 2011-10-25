@@ -275,25 +275,55 @@ again:
 	pr_error("fastboot: oops!\n");
 }
 
+int adb_enable(void)
+{
+	FILE *fp = NULL;
+
+	pr_debug("adb_enable()\n");
+	fp = fopen("/sys/devices/virtual/android_usb/android0/enable",
+		   "r+");
+	if (fp == NULL) {
+		pr_error("Error opening enable node.\n");
+		return 0;
+	}
+	fputs("1", fp);
+	fclose(fp);
+	pr_debug("end adb_enable()\n");
+	return 1;
+}
+
+void adb_disable(void)
+{
+	FILE *fp = NULL;
+
+	pr_debug("adb_disable()\n");
+	fp = fopen("/sys/devices/virutal/android_usb/android0/enable",
+		   "r+");
+	if (fp == NULL) {
+		pr_error("Could not open enable node.\n");
+		return;
+	}
+
+	fputs("0", fp);
+	fclose(fp);
+	pr_debug("end adb_disable()\n");
+}
+
 static int fastboot_handler(void *arg)
 {
 
 	for (;;) {
 		sleep(1);
-		enable_fp = open("/dev/android_adb_enable", O_RDWR);
-		if (enable_fp < 1) {
-			close(fb_fp);
+		if (!adb_enable())
 			continue;
-		}
 		sleep(1);
 		fb_fp = open("/dev/android_adb", O_RDWR);
 		if (fb_fp < 1)
 			continue;
 		fastboot_command_loop();
-		close(enable_fp);
 		close(fb_fp);
 		fb_fp = -1;
-		enable_fp = -1;
+		adb_disable();
 	}
 	return 0;
 }
