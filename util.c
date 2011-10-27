@@ -103,7 +103,7 @@ int named_file_write(const char *filename, const unsigned char *what,
 {
 	int fd;
 	int ret;
-	fd = open(filename, O_RDWR | O_CREAT);
+	fd = open(filename, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
 	if (fd < 0) {
 		printf("file_write: Can't open file %s: %s\n",
 				filename, strerror(errno));
@@ -395,6 +395,7 @@ void apply_sw_update(const char *location, int send_fb_ok)
 		unlink("/mnt/userdata/droidboot.update.zip");
 		goto out;
 	}
+
 	pr_info("Rebooting into recovery console to apply update");
 	if (send_fb_ok)
 		fastboot_okay("");
