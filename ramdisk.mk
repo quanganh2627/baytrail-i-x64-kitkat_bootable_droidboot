@@ -70,6 +70,7 @@ $(DROIDBOOT_RAMDISK): \
 		$(TARGET_DISK_LAYOUT_CONFIG) \
 		$(INSTALLED_RAMDISK_TARGET) \
 		$(INSTALLED_SYSTEMIMAGE) \
+		$(recovery_fstab) \
 		$(droidboot_initrc) \
 		$(droidboot_resources_deps) \
 		$(droidboot_system_files) \
