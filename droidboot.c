@@ -331,7 +331,7 @@ static int input_callback(int fd, short revents, void *data)
 	if (ret)
 		return -1;
 
-	pr_info("Event type: %x, code: %x, value: %x\n",
+	pr_verbose("Event type: %x, code: %x, value: %x\n",
 				ev.type, ev.code,
 				ev.value);
 
