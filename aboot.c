@@ -165,12 +165,8 @@ static void do_sw_update(void *data, unsigned sz)
  */
 static void cmd_flash(const char *part_name, void *data, unsigned sz)
 {
-	FILE *fp = NULL;
-	char *cmd = NULL;
 	char *device;
-	char *cmd_base;
 	struct part_info *ptn = NULL;
-	unsigned char *data_bytes = (unsigned char *)data;
 	int free_device = 0;
 	int do_ext_checks = 0;
 	flash_func cb;
@@ -208,40 +204,11 @@ static void cmd_flash(const char *part_name, void *data, unsigned sz)
 		goto out;
 	}
 
-	/* Check for a gzip header, and use gzip to decompress if present.
-	 * See http://www.gzip.org/zlib/rfc-gzip.html#file-format */
-	if (sz > 2 && data_bytes[0] == 0x1f &&
-			data_bytes[1] == 0x8b && data_bytes[3] == 8) {
-		cmd_base =
-		    "/system/bin/gzip -c -d | /system/bin/dd of=%s bs=8192";
-	} else {
-		cmd_base = "/system/bin/dd of=%s bs=8192";
-	}
-
-	if (asprintf(&cmd, cmd_base, device) < 0) {
-		pr_perror("asprintf");
-		cmd = NULL;
-		fastboot_fail("memory allocation error");
+	/* TODO add gzip support */
+	if (named_file_write(device, data, sz)) {
+		fastboot_fail("Can't write data to target device");
 		goto out;
 	}
-
-	pr_verbose("command: %s\n", cmd);
-	fp = popen(cmd, "w");
-	if (!fp) {
-		pr_perror("popen");
-		fastboot_fail("popen failure");
-		goto out;
-	}
-	free(cmd);
-	cmd = NULL;
-
-	if (sz != fwrite(data, 1, sz, fp)) {
-		pr_perror("fwrite");
-		fastboot_fail("image write failure");
-		goto out;
-	}
-	pclose(fp);
-	fp = NULL;
 	sync();
 
 	pr_debug("wrote %u bytes to %s\n", sz, device);
@@ -278,10 +245,6 @@ static void cmd_flash(const char *part_name, void *data, unsigned sz)
 
 	fastboot_okay("");
 out:
-	if (fp)
-		pclose(fp);
-	if (cmd)
-		free(cmd);
 	if (device && free_device)
 		free(device);
 }
