@@ -289,7 +289,6 @@ static void *progress_thread(void *cookie)
 void ui_init(void)
 {
     gr_init();
-    ev_init();
 
     text_col = text_row = 0;
     text_rows = gr_fb_height() / CHAR_HEIGHT;

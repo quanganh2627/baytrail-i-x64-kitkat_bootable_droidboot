@@ -288,26 +288,37 @@ static void *autoboot_thread(void *arg)
 	return NULL;
 }
 
+static int input_callback(int fd, short revents, void *data)
+{
+	struct input_event ev;
+	int ret;
+
+	ret = ev_get_input(fd, revents, &ev);
+	if (ret)
+		return -1;
+
+	pr_info("Event type: %x, code: %x, value: %x\n",
+				ev.type, ev.code,
+				ev.value);
+
+	switch (ev.type) {
+		case EV_KEY:
+			disable_autoboot();
+			break;
+		default:
+			break;
+	}
+	return 0;
+}
+
+
 static void *input_listener_thread(void *arg)
 {
 	pr_verbose("begin input listener thread\n");
 
 	while (1) {
-		struct input_event event;
-		if (ev_get(&event, 0)) {
-			pr_perror("ev_get");
-			break;
-		}
-		pr_info("Event type: %x, code: %x, value: %x\n",
-				event.type, event.code,
-				event.value);
-		switch (event.type) {
-		case EV_KEY:
-			disable_autoboot();
-			break;
-		default:
-			continue;
-		}
+		if (!ev_wait(-1))
+			ev_dispatch();
 	}
 	pr_verbose("exit input listener thread\n");
 
@@ -367,7 +378,7 @@ int main(int argc, char **argv)
 
 	/* initialize libminui */
 	ui_init();
-	ev_init();
+	ev_init(input_callback, NULL);
 
 	ui_set_background(BACKGROUND_ICON_INSTALLING);
 
