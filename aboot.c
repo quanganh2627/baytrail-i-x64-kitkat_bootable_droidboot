@@ -77,16 +77,16 @@ static int aboot_register_cmd(Hashmap *map, char *key, void *callback)
 
 	k = strdup(key);
 	if (!k) {
-		pr_error("memory allocation error!");
+		pr_perror("strdup");
 		return -1;
 	}
 	if (hashmapGet(map, k)) {
-		pr_error("key collision '%s'", k);
+		pr_error("key collision '%s'\n", k);
 		free(k);
 		return -1;
 	}
 	hashmapPut(map, k, callback);
-	pr_verbose("Registered plugin function %p (%s) with table %p",
+	pr_verbose("Registered plugin function %p (%s) with table %p\n",
 			callback, k, map);
 	return 0;
 }
@@ -125,11 +125,11 @@ static void do_sw_update(void *data, unsigned sz)
 	cacheptn = find_part(disk_info, CACHE_PTN);
 	if (!cacheptn) {
 		pr_error("Couldn't find " CACHE_PTN " partition. Is your "
-				"disk_layout.conf valid?");
+				"disk_layout.conf valid?\n");
 		return;
 	}
 	if (mount_partition(cacheptn)) {
-		pr_error("Couldn't mount " CACHE_PTN "partition");
+		pr_error("Couldn't mount " CACHE_PTN "partition\n");
 		return;
 	}
 	/* Remove any old copy hanging around */
@@ -139,7 +139,7 @@ static void do_sw_update(void *data, unsigned sz)
 	if (named_file_write("/mnt/" CACHE_PTN "/droidboot.update.zip",
 				data, sz)) {
 		pr_error("Couldn't write update package to " CACHE_PTN
-				" partition.");
+				" partition.\n");
 		unmount_partition(cacheptn);
 		return;
 	}
@@ -170,6 +170,8 @@ static void cmd_flash(const char *part_name, void *data, unsigned sz)
 	int free_device = 0;
 	int do_ext_checks = 0;
 	flash_func cb;
+
+	pr_verbose("cmd_flash %s %u\n", part_name, sz);
 
 	if (!strcmp(part_name, "disk")) {
 		device = disk_info->device;
@@ -330,7 +332,7 @@ void aboot_register_commands(void)
 
 	flash_cmds = hashmapCreate(8, strhash, strcompare);
 	if (!flash_cmds) {
-		pr_error("Memory allocation error");
+		pr_error("Memory allocation error\n");
 		die();
 	}
 }

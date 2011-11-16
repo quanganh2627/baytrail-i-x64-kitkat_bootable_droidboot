@@ -71,13 +71,13 @@ int check_ext_superblock(struct part_info *ptn, int *sb_present)
 
 	device = find_part_device(disk_info, ptn->name);
 	if (!device) {
-		pr_error("Coudn't get device node");
+		pr_error("Coudn't get device node\n");
 		goto out;
 	}
 
 	fd = open(device, O_RDWR);
 	if (fd < 0) {
-		pr_error("could not open device node %s", device);
+		pr_error("could not open device node %s\n", device);
 		goto out;
 	}
 	if (lseek(fd, EXT_SUPERBLOCK_OFFSET, SEEK_SET) !=
@@ -105,15 +105,16 @@ int named_file_write(const char *filename, const unsigned char *what,
 	int ret;
 	fd = open(filename, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
 	if (fd < 0) {
-		printf("file_write: Can't open file %s: %s\n",
+		pr_error("file_write: Can't open file %s: %s\n",
 				filename, strerror(errno));
 		return -1;
 	}
 
 	while (sz) {
+		pr_verbose("write() %zu bytes to %s\n", sz, filename);
 		ret = write(fd, what, sz);
 		if (ret <= 0 && errno != EINTR) {
-			printf("file_write: Failed to write to %s: %s\n",
+			pr_error("file_write: Failed to write to %s: %s\n",
 					filename, strerror(errno));
 			close(fd);
 			return -1;
@@ -155,25 +156,25 @@ int ext4_filesystem_checks(const char *device)
 	/* run fdisk to make sure the partition is OK */
 	if (asprintf(&cmd_fsck, "/system/bin/e2fsck -C 0 -fy %s",
 				device) < 0) {
-		pr_error("memory allocation error");
+		pr_perror("asprintf");
 		goto out;
 	}
 	ret = execute_command(cmd_fsck);
 	if (ret < 0 || ret > 1) {
 		/* Return value of 1 is OK */
-		pr_error("fsck of filesystem failed");
+		pr_error("fsck of filesystem failed\n");
 		goto out;
 	}
 
 	/* Resize the filesystem to fill the partition */
 	if (asprintf(&cmd_resize, "/system/bin/resize2fs -F %s",
 				device) < 0) {
-		pr_error("memory allocation error");
+		pr_perror("asprintf");
 		goto out;
 	}
 	if (execute_command(cmd_resize)) {
 		pr_error("could not resize filesystem "
-				"to fill disk");
+				"to fill disk\n");
 		goto out;
 	}
 
@@ -182,11 +183,11 @@ int ext4_filesystem_checks(const char *device)
 	 * result in complaints */
 	if (asprintf(&cmd_tune, "/system/bin/tune2fs -C 1 %s",
 				device) < 0) {
-		pr_error("memory allocation error");
+		pr_perror("asprintf");
 		goto out;
 	}
 	if (execute_command(cmd_tune)) {
-		pr_error("tune2fs failed");
+		pr_error("tune2fs failed\n");
 		goto out;
 	}
 	ret = 0;
@@ -212,7 +213,7 @@ int mount_partition(struct part_info *ptn)
 	}
 	vol = volume_for_device(pdevice);
 	if (!vol) {
-		pr_error("%s not in recovery.fstab!", pdevice);
+		pr_error("%s not in recovery.fstab!\n", pdevice);
 		goto out;
 	}
 
@@ -253,28 +254,28 @@ int erase_partition(struct part_info *ptn)
 
 	pdevice = find_part_device(disk_info, ptn->name);
 	if (!pdevice) {
-		pr_error("find_part_device failed!");
+		pr_error("find_part_device failed!\n");
 		die();
 	}
 
 	if (!is_valid_blkdev(pdevice)) {
-		pr_error("invalid destination node. partition disks?");
+		pr_error("invalid destination node. partition disks?\n");
 		goto out;
 	}
 
 	vol = volume_for_device(pdevice);
 	if (!vol) {
-		pr_error("%s not in recovery.fstab!", pdevice);
+		pr_error("%s not in recovery.fstab!\n", pdevice);
 		goto out;
 	}
 
 	if (!strcmp(vol->fs_type, "ext4")) {
 		if (make_ext4fs_quick(vol->device, vol->length)) {
-		        pr_error("make_ext4fs failed");
+		        pr_error("make_ext4fs failed\n");
 			goto out;
 		}
 	} else {
-		pr_error("erase_partition: I can't handle fs_type %s",
+		pr_error("erase_partition: I can't handle fs_type %s\n",
 				vol->fs_type);
 		goto out;
 	}
@@ -311,7 +312,7 @@ int is_valid_blkdev(const char *node)
 		return 0;
 	}
 	if (!S_ISBLK(statbuf.st_mode)) {
-		pr_error("%s is not a block device", node);
+		pr_error("%s is not a block device\n", node);
 		return 0;
 	}
 	return 1;
@@ -376,27 +377,27 @@ void apply_sw_update(const char *location, int send_fb_ok)
 	cacheptn = find_part(disk_info, "cache");
 	if (!cacheptn) {
 		pr_error("Couldn't find cache partition. Is your "
-				"disk_layout.conf valid?");
+				"disk_layout.conf valid?\n");
 		goto out;
 	}
 	if (mount_partition(cacheptn)) {
-		pr_error("Couldn't mount cache partition.");
+		pr_error("Couldn't mount cache partition.\n");
 		goto out;
 	}
 
 	if (mkdir("/mnt/cache/recovery", 0777) && errno != EEXIST) {
-		pr_error("Couldn't create /mnt/cache/recovery directory");
+		pr_error("Couldn't create /mnt/cache/recovery directory\n");
 		goto out;
 	}
 
 	if (named_file_write("/mnt/cache/recovery/command", (void *)cmdline,
 				strlen(cmdline))) {
-		pr_error("Couldn't create recovery console command file");
+		pr_error("Couldn't create recovery console command file\n");
 		unlink("/mnt/userdata/droidboot.update.zip");
 		goto out;
 	}
 
-	pr_info("Rebooting into recovery console to apply update");
+	pr_info("Rebooting into recovery console to apply update\n");
 	if (send_fb_ok)
 		fastboot_okay("");
 	android_reboot(ANDROID_RB_RESTART2, 0, "recovery");

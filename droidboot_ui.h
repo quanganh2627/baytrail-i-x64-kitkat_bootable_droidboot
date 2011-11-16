@@ -21,9 +21,9 @@
 #ifndef _DROIDBOOT_UI_H_
 #define _DROIDBOOT_UI_H_
 
-#define pr_perror(x)	pr_error("%s failed: %s", x, strerror(errno))
+#define pr_perror(x)	pr_error("%s failed: %s\n", x, strerror(errno))
 
-#define VERBOSE_DEBUG 0
+#define VERBOSE_DEBUG 1
 
 #ifdef USE_GUI
 #define pr_error(...) do { \

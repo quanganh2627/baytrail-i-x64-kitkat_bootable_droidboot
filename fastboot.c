@@ -137,7 +137,7 @@ static int usb_read(void *_buf, unsigned len)
 		if ((unsigned int)r != xfer)
 			break;
 	}
-
+	pr_verbose("usb_read complete\n");
 	return count;
 
 oops:
@@ -184,13 +184,13 @@ void fastboot_ack(const char *code, const char *reason)
 
 void fastboot_fail(const char *reason)
 {
-	pr_error("ack FAIL %s", reason);
+	pr_error("ack FAIL %s\n", reason);
 	fastboot_ack("FAIL", reason);
 }
 
 void fastboot_okay(const char *info)
 {
-	pr_debug("ack OKAY %s", info);
+	pr_debug("ack OKAY %s\n", info);
 	fastboot_ack("OKAY", info);
 }
 
