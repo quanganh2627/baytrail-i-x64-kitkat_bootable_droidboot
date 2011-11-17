@@ -13,14 +13,12 @@ on init
 
     # USB Gadget initialization
     write /sys/class/android_usb/android0/enable 0
-    # Eventually the VID:DID should be set; adb doesn't seem to be
-    # recognized if they are, though.  Tried 8086:0811 and
-    # 8086:0829 w/o success
-#    write /sys/class/android_usb/android0/idVendor 0x8086
-#    write /sys/class/android_usb/android0/idProduct 0x0829
     write /sys/class/android_usb/android0/iManufacturer Intel
     write /sys/class/android_usb/android0/iSerial ABC123
     write /sys/class/android_usb/android0/functions adb
+    write /sys/class/android_usb/android0/idVendor 8087
+    write /sys/class/android_usb/android0/idProduct 0829
+    write /sys/class/android_usb/android0/enable 1
 
 on boot
     ifup lo
