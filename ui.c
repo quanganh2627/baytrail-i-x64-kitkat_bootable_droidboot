@@ -84,6 +84,7 @@ static char text[MAX_ROWS][MAX_COLS];
 static int text_cols = 0, text_rows = 0;
 static int text_col = 0, text_row = 0, text_top = 0;
 static int show_text = 0;
+static pthread_mutex_t gTextMutex = PTHREAD_MUTEX_INITIALIZER;
 
 static char menu[MAX_ROWS][MAX_COLS];
 static int show_menu = 0;
@@ -211,9 +212,11 @@ static void draw_screen_locked(void)
 
         gr_color(255, 255, 0, 255);
 
+        pthread_mutex_lock(&gTextMutex);
         for (; i < text_rows; ++i) {
             draw_text_line(i, text[(i+text_top) % text_rows]);
         }
+        pthread_mutex_unlock(&gTextMutex);
     }
 }
 
@@ -408,7 +411,6 @@ void ui_reset_progress()
     pthread_mutex_unlock(&gUpdateMutex);
 }
 
-/* FIXME: for some reason, this function is horribly slow */
 void ui_print(const char *fmt, ...)
 {
     char buf[256];
@@ -424,7 +426,7 @@ void ui_print(const char *fmt, ...)
         buf[strlen(buf) - 1] = '\0';
 
     // This can get called before ui_init(), so be careful.
-    pthread_mutex_lock(&gUpdateMutex);
+    pthread_mutex_lock(&gTextMutex);
     if (text_rows > 0 && text_cols > 0) {
         char *ptr;
         if (text_col != 0) {
@@ -442,9 +444,14 @@ void ui_print(const char *fmt, ...)
             if (*ptr != '\n') text[text_row][text_col++] = *ptr;
         }
         text[text_row][text_col] = '\0';
-        update_screen_locked();
     }
-    pthread_mutex_unlock(&gUpdateMutex);
+    pthread_mutex_unlock(&gTextMutex);
+    if (show_text) {
+        pthread_mutex_lock(&gUpdateMutex);
+        update_screen_locked();
+        pthread_mutex_unlock(&gUpdateMutex);
+    }
+
 }
 
 void ui_show_text(int visible)
