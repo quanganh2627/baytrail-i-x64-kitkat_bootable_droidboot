@@ -56,10 +56,10 @@
 #include "droidboot_ui.h"
 
 #define CMD_SYSTEM		"system"
-#define CMD_PARTITION		"partition"
 #define CMD_SHOWTEXT		"showtext"
 
 Hashmap *flash_cmds;
+Hashmap *oem_cmds;
 
 static bool strcompare(void *keyA, void *keyB)
 {
@@ -94,6 +94,11 @@ static int aboot_register_cmd(Hashmap *map, char *key, void *callback)
 int aboot_register_flash_cmd(char *key, flash_func callback)
 {
 	return aboot_register_cmd(flash_cmds, key, callback);
+}
+
+int aboot_register_oem_cmd(char *key, oem_func callback)
+{
+	return aboot_register_cmd(oem_cmds, key, callback);
 }
 
 /* Erase a named partition by creating a new empty partition on top of
@@ -253,14 +258,44 @@ out:
 
 static void cmd_oem(const char *arg, void *data, unsigned sz)
 {
-	const char *command;
+	char *command, *saveptr, *str1;
+	char *argv[MAX_OEM_ARGS];
+	int argc = 0;
+	oem_func cb;
+
 	pr_verbose("%s: <%s>\n", __FUNCTION__, arg);
 
 	while (*arg == ' ')
 		arg++;
-	command = arg;
+	command = strdup(arg); /* Can't use strtok() on const strings */
+	if (!command) {
+		pr_perror("strdup");
+		fastboot_fail("memory allocation error");
+		return;
+	}
 
-	if (strncmp(command, CMD_SYSTEM, strlen(CMD_SYSTEM)) == 0) {
+	for (str1 = command; argc < MAX_OEM_ARGS; str1 = NULL) {
+		argv[argc] = strtok_r(str1, " \t", &saveptr);
+		if (!argv[argc])
+			break;
+		argc++;
+	}
+	if (argc == 0) {
+		fastboot_fail("empty OEM command");
+		goto out;
+	}
+
+	if ( (cb = hashmapGet(oem_cmds, argv[0])) ) {
+		int ret;
+
+		ret = cb(argc, argv);
+		if (ret) {
+			pr_error("oem %s command failed, retval = %d\n",
+					argv[0], ret);
+			fastboot_fail(argv[0]);
+		} else
+			fastboot_okay("");
+	} else if (strcmp(argv[0], CMD_SYSTEM) == 0) {
 		int retval;
 		arg += strlen(CMD_SYSTEM);
 		while (*arg == ' ')
@@ -273,17 +308,15 @@ static void cmd_oem(const char *arg, void *data, unsigned sz)
 			pr_verbose("\nsucceeds: %s\n", arg);
 			fastboot_okay("");
 		}
-	} else if (strncmp(command, CMD_PARTITION,
-				strlen(CMD_PARTITION)) == 0) {
-		/* FIXME: Done at boot, no-op. Remove this command! */
-		fastboot_okay("");
-	} else if (strncmp(command, CMD_SHOWTEXT,
-				strlen(CMD_SHOWTEXT)) == 0) {
+	} else if (strcmp(argv[0], CMD_SHOWTEXT) == 0) {
 		ui_show_text(1);
 		fastboot_okay("");
 	} else {
 		fastboot_fail("unknown OEM command");
 	}
+out:
+	if (command)
+		free(command);
 	return;
 }
 
@@ -331,8 +364,10 @@ void aboot_register_commands(void)
 	fastboot_publish("droidboot", DROIDBOOT_VERSION);
 
 	flash_cmds = hashmapCreate(8, strhash, strcompare);
-	if (!flash_cmds) {
+	oem_cmds = hashmapCreate(8, strhash, strcompare);
+	if (!flash_cmds || !oem_cmds) {
 		pr_error("Memory allocation error\n");
 		die();
 	}
+
 }
