@@ -70,6 +70,7 @@ $(DROIDBOOT_RAMDISK): \
 		$(TARGET_DISK_LAYOUT_CONFIG) \
 		$(INSTALLED_RAMDISK_TARGET) \
 		$(INSTALLED_SYSTEMIMAGE) \
+		$(MINIGZIP) \
 		$(recovery_fstab) \
 		$(droidboot_initrc) \
 		$(droidboot_resources_deps) \
@@ -92,7 +93,7 @@ endif
 	$(hide) cp -f $(recovery_fstab) $(droidboot_etc_out)/recovery.fstab
 	$(hide) $(call droidboot-copy-files,$(TARGET_OUT),$(droidboot_system_out))
 	$(hide) cp -f $(TARGET_DISK_LAYOUT_CONFIG) $(droidboot_etc_out)/disk_layout.conf
-	$(hide) $(MKBOOTFS) $(droidboot_root_out) | gzip > $@
+	$(hide) $(MKBOOTFS) $(droidboot_root_out) | $(MINIGZIP) > $@
 	@echo "Created Droidboot ramdisk: $@"
 
 # Create a standard Android bootimage using the regular kernel and the
