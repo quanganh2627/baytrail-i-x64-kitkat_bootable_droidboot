@@ -21,7 +21,13 @@
 
 typedef int (*flash_func)(void *data, unsigned sz);
 
+#define MAX_OEM_ARGS 64
+
+typedef int (*oem_func)(int argc, char **argv);
+
 int aboot_register_flash_cmd(char *key, flash_func callback);
+
+int aboot_register_oem_cmd(char *key, oem_func callback);
 
 /* publish a variable readable by the built-in getvar command */
 void fastboot_publish(const char *name, const char *value);

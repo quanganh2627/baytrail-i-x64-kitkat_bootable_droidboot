@@ -38,7 +38,7 @@ extern pthread_mutex_t action_mutex;
 
 #define DISK_CONFIG_LOCATION	"/system/etc/disk_layout.conf"
 #define RECOVERY_FSTAB_LOCATION	"/system/etc/recovery.fstab"
-#define DROIDBOOT_VERSION       "01.01"
+#define DROIDBOOT_VERSION       "01.02"
 
 /* In disk_layout.conf */
 #define CACHE_PTN		"cache"
