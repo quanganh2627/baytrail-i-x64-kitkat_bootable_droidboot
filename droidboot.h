@@ -25,17 +25,6 @@ extern struct disk_info *disk_info;
  * performing a command, and also any worker thread handlers */
 extern pthread_mutex_t action_mutex;
 
-/* Some configuration settings */
-#ifndef USE_AUTOBOOT
-#define USE_AUTOBOOT		0
-#endif
-#ifndef AUTOBOOT_DELAY_SECS
-#define AUTOBOOT_DELAY_SECS	8
-#endif
-#ifndef SCRATCH_SIZE
-#define SCRATCH_SIZE		(400 * MEGABYTE)
-#endif
-
 #define DISK_CONFIG_LOCATION	"/system/etc/disk_layout.conf"
 #define RECOVERY_FSTAB_LOCATION	"/system/etc/recovery.fstab"
 #define DROIDBOOT_VERSION       "01.02"
@@ -43,7 +32,6 @@ extern pthread_mutex_t action_mutex;
 /* In disk_layout.conf */
 #define CACHE_PTN		"cache"
 #define DATA_PTN		"userdata"
-#define SECONDSTAGEBOOT_PTN	"2ndstageboot"
 
 /* Volume entry in recovery.fstab for the SD card */
 #define SDCARD_VOLUME		"/sdcard"

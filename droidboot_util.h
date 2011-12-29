@@ -5,7 +5,7 @@
 
 int named_file_write(const char *filename, const unsigned char *what,
 		size_t sz);
-int kexec_linux(char *kernel, char *initrd, char *cmdline);
+int kexec_linux(char *basepath);
 int is_valid_blkdev(const char *node);
 /* Attribute specification and -Werror prevents most security shenanigans with
  * this function */
@@ -20,5 +20,5 @@ int check_ext_superblock(struct part_info *ptn, int *sb_present);
 int unmount_partition(struct part_info *ptn);
 int mount_partition_device(const char *device, const char *type, char *mountpoint);
 int ext4_filesystem_checks(const char *device);
-
+void import_kernel_cmdline(void (*callback)(char *name));
 #endif

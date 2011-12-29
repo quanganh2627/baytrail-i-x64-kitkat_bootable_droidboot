@@ -85,7 +85,20 @@ pthread_mutex_t action_mutex = PTHREAD_MUTEX_INITIALIZER;
  * that gets cleared */
 static int autoboot_enabled;
 
-#define AUTOBOOT_FRAC   (1.0 / AUTOBOOT_DELAY_SECS)
+/* Whether to kexec into a 2nd-stage kernel on boot */
+static int g_use_autoboot = 0;
+
+/* Filesystem containing 2nd-stage boot images */
+static char *g_2ndstageboot_part = DATA_PTN;
+
+/* Directory within filesystem containing 2nd-stage boot images */
+static char *g_2ndstageboot_dir = "2ndstageboot";
+
+/* When performing a countdown, how many seconds to wait */
+static int g_autoboot_delay_secs = 8;
+
+/* Default size of memory buffer for image data */
+static int g_scratch_size = 400;
 
 #define AUTO_UPDATE_FNAME	DEVICE_NAME ".auto-ota.zip"
 
@@ -255,7 +268,7 @@ int try_update_sw(Volume *vol, int use_countdown)
 		int countdown_complete;
 		ui_show_text(1);
 		countdown_complete = countdown("SW update",
-				AUTOBOOT_DELAY_SECS);
+				g_autoboot_delay_secs);
 		ui_show_text(0);
 		if (!countdown_complete)
 			goto out;
@@ -279,7 +292,7 @@ static void *autoboot_thread(void *arg)
 {
 	/* FIXME: check if there's anything to actually boot
 	 * before starting the countdown */
-	if (!countdown("boot", AUTOBOOT_DELAY_SECS))
+	if (!countdown("boot", g_autoboot_delay_secs))
 		return NULL;
 
 	ui_reset_progress();
@@ -328,17 +341,19 @@ static void *input_listener_thread(void *arg)
 
 void start_default_kernel(void)
 {
+	char basepath[PATH_MAX];
 	struct part_info *ptn;
-	ptn = find_part(disk_info, SECONDSTAGEBOOT_PTN);
+	ptn = find_part(disk_info, g_2ndstageboot_part);
 
 	if (mount_partition(ptn)) {
-		pr_error("Can't mount second-stage boot partition!\n");
+		pr_error("Can't mount second-stage boot partition (%s)\n",
+				g_2ndstageboot_part);
 		return;
 	}
 
-	kexec_linux("/mnt/2ndstageboot/kernel",
-			"/mnt/2ndstageboot/ramdisk.img",
-			"/mnt/2ndstageboot/cmdline");
+	snprintf(basepath, sizeof(basepath), "/mnt/%s/%s/",
+			g_2ndstageboot_part, g_2ndstageboot_dir);
+	kexec_linux(basepath);
 	/* Failed if we get here */
 	pr_error("kexec failed");
 }
@@ -369,12 +384,46 @@ void setup_disk_information(char *disk_layout_location)
 }
 
 
+static void parse_cmdline_option(char *name)
+{
+	char *value = strchr(name, '=');
+
+	if (value == 0)
+		return;
+	*value++ = 0;
+	if (*name == 0)
+		return;
+
+	if (!strncmp(name, "droidboot", 9))
+		pr_info("Got parameter %s = %s\n", name, value);
+	else
+		return;
+
+	if (!strcmp(name, "droidboot.bootloader")) {
+		g_use_autoboot = atoi(value);
+	} else if (!strcmp(name, "droidboot.delay")) {
+		g_autoboot_delay_secs = atoi(value);
+	} else if (!strcmp(name, "droidboot.scratch")) {
+		g_scratch_size = atoi(value);
+	} else if (!strcmp(name, "droidboot.bootpart")) {
+		g_2ndstageboot_part = strdup(value);
+		if (!g_2ndstageboot_part)
+			die();
+	} else if (!strcmp(name, "droidboot.bootdir")) {
+		g_2ndstageboot_part = strdup(value);
+		if (!g_2ndstageboot_part)
+			die();
+	} else {
+		pr_error("Unknown parameter %s, ignoring\n", name);
+	}
+}
+
+
 int main(int argc, char **argv)
 {
 	char *config_location;
 	pthread_t t_auto, t_input;
 	Volume *vol;
-	int use_autoboot;
 
 	/* initialize libminui */
 	ui_init();
@@ -383,13 +432,12 @@ int main(int argc, char **argv)
 	ui_set_background(BACKGROUND_ICON_INSTALLING);
 
 	pr_info(" -- Droidboot %s for %s --\n", DROIDBOOT_VERSION, DEVICE_NAME);
+	import_kernel_cmdline(parse_cmdline_option);
+
 	if (argc > 1)
 		config_location = argv[1];
 	else
 		config_location = DISK_CONFIG_LOCATION;
-
-	/* FIXME make this run-time configurable */
-	use_autoboot = USE_AUTOBOOT;
 
 	setup_disk_information(config_location);
 
@@ -407,7 +455,7 @@ int main(int argc, char **argv)
 	if (vol)
 		try_update_sw(vol, 1);
 
-	if (use_autoboot) {
+	if (g_use_autoboot) {
 		if (pthread_create(&t_auto, NULL, autoboot_thread, NULL)) {
 			pr_perror("pthread_create");
 			die();
@@ -415,7 +463,7 @@ int main(int argc, char **argv)
 	}
 
 	pr_info("Listening for the fastboot protocol over USB.");
-	fastboot_init(SCRATCH_SIZE);
+	fastboot_init(g_scratch_size * MEGABYTE);
 
 	/* Shouldn't get here */
 	exit(1);

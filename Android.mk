@@ -13,10 +13,6 @@ LOCAL_SRC_FILES := \
 LOCAL_CFLAGS := -DDEVICE_NAME=\"$(TARGET_DEVICE)\" \
 	-W -Wall -Wno-unused-parameter -Werror
 
-ifeq ($(DROIDBOOT_USE_AUTOBOOT),true)
-LOCAL_CFLAGS += -DUSE_AUTOBOOT=1
-endif
-
 LOCAL_MODULE := droidboot
 LOCAL_MODULE_TAGS := eng
 LOCAL_SHARED_LIBRARIES := libdiskconfig liblog libext4_utils libz

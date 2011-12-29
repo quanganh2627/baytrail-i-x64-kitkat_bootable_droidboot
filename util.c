@@ -352,17 +352,19 @@ int is_valid_blkdev(const char *node)
 }
 
 
-int kexec_linux(char *kernel, char *initrd, char *cmdline)
+int kexec_linux(char *basepath)
 {
 	char cmdline_buf[2048];
+	char cmdline_file[PATH_MAX];
 	int bytes_read;
 	int ret;
 	int fd;
 
 	/* Read the kernel command line */
-	fd = open(cmdline, O_RDONLY);
+	snprintf(cmdline_file, sizeof(cmdline_file), "%s/cmdline", basepath);
+	fd = open(cmdline_file, O_RDONLY);
 	if (fd < 0) {
-		pr_error("can't open %s: %s", cmdline,
+		pr_error("can't open %s: %s", cmdline_file,
 				strerror(errno));
 		return -1;
 	}
@@ -374,8 +376,9 @@ int kexec_linux(char *kernel, char *initrd, char *cmdline)
 	cmdline_buf[bytes_read] = '\0';
 
 	/* Load the target kernel into RAM */
-	ret = execute_command("kexec -l %s --ramdisk=%s --command-line=\"%s\"",
-		kernel, initrd, cmdline_buf);
+	ret = execute_command("kexec -l %s/kernel --ramdisk=%s/ramdisk.img "
+			" --command-line=\"%s\"",
+		basepath, basepath, cmdline_buf);
 	if (ret != 0) {
 		pr_error("kexec load failed! (ret=%d)\n", ret);
 		return -1;
@@ -432,5 +435,40 @@ void apply_sw_update(const char *location, int send_fb_ok)
 out:
 	unmount_partition(cacheptn);
 	free(cmdline);
+}
+
+
+/* Taken from Android init, which also pulls runtime options
+ * out of the kernel command line
+ * FIXME: params can't have spaces */
+void import_kernel_cmdline(void (*callback)(char *name))
+{
+	char cmdline[1024];
+	char *ptr;
+	int fd;
+
+	fd = open("/proc/cmdline", O_RDONLY);
+	if (fd >= 0) {
+		int n = read(fd, cmdline, 1023);
+		if (n < 0) n = 0;
+
+		/* get rid of trailing newline, it happens */
+		if (n > 0 && cmdline[n-1] == '\n')
+			n--;
+
+		cmdline[n] = 0;
+		close(fd);
+	} else {
+		cmdline[0] = 0;
+	}
+
+	ptr = cmdline;
+	while (ptr && *ptr) {
+		char *x = strchr(ptr, ' ');
+		if (x != 0)
+			*x++ = 0;
+		callback(ptr);
+		ptr = x;
+	}
 }
 
