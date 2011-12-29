@@ -123,7 +123,7 @@ static void cmd_erase(const char *part_name, void *data, unsigned sz)
 }
 
 
-static void do_sw_update(void *data, unsigned sz)
+static int cmd_flash_update(void *data, unsigned sz)
 {
 	struct part_info *cacheptn;
 
@@ -131,11 +131,11 @@ static void do_sw_update(void *data, unsigned sz)
 	if (!cacheptn) {
 		pr_error("Couldn't find " CACHE_PTN " partition. Is your "
 				"disk_layout.conf valid?\n");
-		return;
+		return -1;
 	}
 	if (mount_partition(cacheptn)) {
 		pr_error("Couldn't mount " CACHE_PTN "partition\n");
-		return;
+		return -1;
 	}
 	/* Remove any old copy hanging around */
 	unlink("/mnt/" CACHE_PTN "/droidboot.update.zip");
@@ -146,10 +146,11 @@ static void do_sw_update(void *data, unsigned sz)
 		pr_error("Couldn't write update package to " CACHE_PTN
 				" partition.\n");
 		unmount_partition(cacheptn);
-		return;
+		return -1;
 	}
 	unmount_partition(cacheptn);
 	apply_sw_update(CACHE_VOLUME "/droidboot.update.zip", 1);
+	return -1;
 }
 
 /* Image command. Allows user to send a single gzipped file which
@@ -161,9 +162,6 @@ static void do_sw_update(void *data, unsigned sz)
  *
  * "disk" : Write directly to the disk node specified in disk_layout.conf,
  *          whatever it is named there.
- * "update" : Writes a signed OTA Update package to the data partition,
- *            writes the command file for the recovery console, and
- *            reboots into recovery console to apply the update
  * <name> : Look in the flash_cmds table and execute the callback function.
  *          If not found, lookup the named partition in disk_layout.conf 
  *          and write to its corresponding device node
@@ -180,10 +178,6 @@ static void cmd_flash(const char *part_name, void *data, unsigned sz)
 
 	if (!strcmp(part_name, "disk")) {
 		device = disk_info->device;
-	} else if (!strcmp(part_name, "update")) {
-		do_sw_update(data, sz);
-		fastboot_fail("could not stage software update package");
-		return;
 	} else if ( (cb = hashmapGet(flash_cmds, (char *)part_name)) ) {
 		/* Use our table of flash functions registered by platform
 		 * specific plugin libraries */
@@ -349,6 +343,7 @@ static void cmd_continue(const char *arg, void *data, unsigned sz)
 	fastboot_fail("Unable to boot default kernel!");
 }
 
+
 void aboot_register_commands(void)
 {
 	fastboot_register("oem", cmd_oem);
@@ -369,5 +364,7 @@ void aboot_register_commands(void)
 		pr_error("Memory allocation error\n");
 		die();
 	}
+
+	aboot_register_flash_cmd("update", cmd_flash_update);
 
 }
