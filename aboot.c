@@ -300,7 +300,7 @@ static void cmd_oem(const char *arg, void *data, unsigned sz)
 		arg += strlen(CMD_SYSTEM);
 		while (*arg == ' ')
 			arg++;
-		retval = execute_command(arg);
+		retval = execute_command("%s", arg);
 		if (retval != 0) {
 			pr_error("\nfails: %s (return value %d)\n", arg, retval);
 			fastboot_fail("OEM system command failed");

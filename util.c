@@ -37,6 +37,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <stdarg.h>
 #include <stdint.h>
 #include <unistd.h>
 #include <linux/ext3_fs.h>
@@ -148,54 +149,35 @@ int mount_partition_device(const char *device, const char *type, char *mountpoin
 
 int ext4_filesystem_checks(const char *device)
 {
-	char *cmd_resize = NULL;
-	char *cmd_fsck = NULL;
-	char *cmd_tune = NULL;
-	int ret = -1;
+	int ret;
 
 	/* run fdisk to make sure the partition is OK */
-	if (asprintf(&cmd_fsck, "/system/bin/e2fsck -C 0 -fy %s",
-				device) < 0) {
-		pr_perror("asprintf");
-		goto out;
-	}
-	ret = execute_command(cmd_fsck);
+	/* FIXME: pre-populate the lost+found directory, and abort
+	 * on any error instead of trying to fix things */
+	ret = execute_command("/system/bin/e2fsck -C 0 -fy %s",
+				device);
 	if (ret < 0 || ret > 1) {
 		/* Return value of 1 is OK */
 		pr_error("fsck of filesystem failed\n");
-		goto out;
+		return -1;
 	}
 
 	/* Resize the filesystem to fill the partition */
-	if (asprintf(&cmd_resize, "/system/bin/resize2fs -F %s",
+	if (execute_command("/system/bin/resize2fs -F %s",
 				device) < 0) {
-		pr_perror("asprintf");
-		goto out;
-	}
-	if (execute_command(cmd_resize)) {
 		pr_error("could not resize filesystem "
 				"to fill disk\n");
-		goto out;
+		return -1;
 	}
-
 
 	/* Set mount count to 1 so that 1st mount on boot doesn't
 	 * result in complaints */
-	if (asprintf(&cmd_tune, "/system/bin/tune2fs -C 1 %s",
+	if (execute_command("/system/bin/tune2fs -C 1 %s",
 				device) < 0) {
-		pr_perror("asprintf");
-		goto out;
-	}
-	if (execute_command(cmd_tune)) {
 		pr_error("tune2fs failed\n");
-		goto out;
+		return -1;
 	}
-	ret = 0;
-out:
-	free(cmd_resize);
-	free(cmd_fsck);
-	free(cmd_tune);
-	return ret;
+	return 0;
 }
 
 int mount_partition(struct part_info *ptn)
@@ -285,9 +267,18 @@ out:
 	return ret;
 }
 
-int execute_command(const char *cmd)
+int execute_command(const char *fmt, ...)
 {
-	int ret;
+	int ret = -1;
+	va_list ap;
+	char *cmd;
+
+	va_start(ap, fmt);
+	if (vasprintf(&cmd, fmt, ap) < 0) {
+		pr_perror("vasprintf");
+		return -1;
+	}
+	va_end(ap);
 
 	pr_debug("Executing: '%s'\n", cmd);
 	ret = system(cmd);
@@ -295,10 +286,52 @@ int execute_command(const char *cmd)
 	if (ret < 0) {
 		pr_error("Error while trying to execute '%s': %s\n",
 			cmd, strerror(errno));
-		return ret;
+		goto out;
 	}
 	ret = WEXITSTATUS(ret);
 	pr_debug("Done executing '%s' (retval=%d)\n", cmd, ret);
+out:
+	free(cmd);
+	return ret;
+}
+
+int execute_command_data(void *data, unsigned sz, const char *fmt, ...)
+{
+	int ret = -1;
+	va_list ap;
+	char *cmd;
+	FILE *fp;
+	size_t bytes_written;
+
+	va_start(ap, fmt);
+	if (vasprintf(&cmd, fmt, ap) < 0) {
+		pr_perror("vasprintf");
+		return -1;
+	}
+	va_end(ap);
+
+	pr_debug("Executing: '%s'\n", cmd);
+	fp = popen(cmd, "w");
+	free(cmd);
+	if (!fp) {
+		pr_perror("popen");
+		return -1;
+	}
+
+	bytes_written = fwrite(data, 1, sz, fp);
+	if (bytes_written != sz) {
+		pr_perror("fwrite");
+		pclose(fp);
+		return -1;
+	}
+
+	ret = pclose(fp);
+	if (ret < 0) {
+		pr_perror("pclose");
+		return -1;
+	}
+	ret = WEXITSTATUS(ret);
+	pr_debug("Execution complete, retval=%d\n", ret);
 
 	return ret;
 }
@@ -321,8 +354,7 @@ int is_valid_blkdev(const char *node)
 
 int kexec_linux(char *kernel, char *initrd, char *cmdline)
 {
-	char cmdline_buf[256];
-	char kexec_cmd[512];
+	char cmdline_buf[2048];
 	int bytes_read;
 	int ret;
 	int fd;
@@ -342,10 +374,8 @@ int kexec_linux(char *kernel, char *initrd, char *cmdline)
 	cmdline_buf[bytes_read] = '\0';
 
 	/* Load the target kernel into RAM */
-	snprintf(kexec_cmd, sizeof(kexec_cmd),
-		"kexec -l %s --ramdisk=%s --command-line=\"%s\"",
+	ret = execute_command("kexec -l %s --ramdisk=%s --command-line=\"%s\"",
 		kernel, initrd, cmdline_buf);
-	ret = execute_command(kexec_cmd);
 	if (ret != 0) {
 		pr_error("kexec load failed! (ret=%d)\n", ret);
 		return -1;
@@ -353,10 +383,8 @@ int kexec_linux(char *kernel, char *initrd, char *cmdline)
 	fastboot_okay("");
 
 	/* Pull the trigger */
-	snprintf(kexec_cmd, sizeof(kexec_cmd),
-		"kexec -e");
 	sync();
-	execute_command(kexec_cmd);
+	execute_command("kexec -e");
 
 	/* Shouldn't get here! */
 	pr_error("kexec failed!\n");
@@ -405,5 +433,4 @@ out:
 	unmount_partition(cacheptn);
 	free(cmdline);
 }
-
 
