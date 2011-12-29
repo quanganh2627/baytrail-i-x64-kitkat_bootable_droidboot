@@ -152,12 +152,9 @@ int ext4_filesystem_checks(const char *device)
 	int ret;
 
 	/* run fdisk to make sure the partition is OK */
-	/* FIXME: pre-populate the lost+found directory, and abort
-	 * on any error instead of trying to fix things */
-	ret = execute_command("/system/bin/e2fsck -C 0 -fy %s",
+	ret = execute_command("/system/bin/e2fsck -C 0 -fn %s",
 				device);
-	if (ret < 0 || ret > 1) {
-		/* Return value of 1 is OK */
+	if (ret) {
 		pr_error("fsck of filesystem failed\n");
 		return -1;
 	}
