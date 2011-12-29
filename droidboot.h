@@ -25,6 +25,9 @@ extern struct disk_info *disk_info;
  * performing a command, and also any worker thread handlers */
 extern pthread_mutex_t action_mutex;
 
+/* If set, apply this update on 'fastboot continue' */
+extern char *g_update_location;
+
 #define DISK_CONFIG_LOCATION	"/system/etc/disk_layout.conf"
 #define RECOVERY_FSTAB_LOCATION	"/system/etc/recovery.fstab"
 #define DROIDBOOT_VERSION       "01.02"

@@ -339,8 +339,13 @@ static void cmd_reboot_bl(const char *arg, void *data, unsigned sz)
 
 static void cmd_continue(const char *arg, void *data, unsigned sz)
 {
-	start_default_kernel();
-	fastboot_fail("Unable to boot default kernel!");
+	if (g_update_location) {
+		apply_sw_update(g_update_location, 1);
+		fastboot_fail("Unable to apply SW update");
+	} else {
+		start_default_kernel();
+		fastboot_fail("Unable to boot default kernel!");
+	}
 }
 
 

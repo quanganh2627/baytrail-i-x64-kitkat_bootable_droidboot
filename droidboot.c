@@ -100,6 +100,12 @@ static int g_autoboot_delay_secs = 8;
 /* Default size of memory buffer for image data */
 static int g_scratch_size = 400;
 
+/* If nonzero, wait for "fastboot continue" before applying a
+ * detected SW update in try_update_sw() */
+static int g_update_pause = 0;
+
+char *g_update_location = NULL;
+
 #define AUTO_UPDATE_FNAME	DEVICE_NAME ".auto-ota.zip"
 
 int (*platform_provision_function)(void);
@@ -257,12 +263,16 @@ static int countdown(char *action, int seconds)
 
 int try_update_sw(Volume *vol, int use_countdown)
 {
-	char *update_location;
 	int ret = 0;
+	char *update_location;
+
+	/* Check if we've already been here */
+	if (g_update_location)
+		return 0;
 
 	update_location = detect_sw_update(vol);
 	if (!update_location)
-		goto out;
+		return 0;
 
 	if (use_countdown) {
 		int countdown_complete;
@@ -270,20 +280,31 @@ int try_update_sw(Volume *vol, int use_countdown)
 		countdown_complete = countdown("SW update",
 				g_autoboot_delay_secs);
 		ui_show_text(0);
-		if (!countdown_complete)
-			goto out;
+		if (!countdown_complete) {
+			free(update_location);
+			return 0;
+		}
 	}
 
 	ret = -1;
 
 	pthread_mutex_lock(&action_mutex);
 	ui_show_indeterminate_progress();
-	if (!provisioning_checks(vol))
-		apply_sw_update(update_location, 0);
+	if (provisioning_checks(vol)) {
+		free(update_location);
+	} else {
+		if (!g_update_pause) {
+			apply_sw_update(update_location, 0);
+			free(update_location);
+		} else {
+			/* Stash the location for later use with
+			 * 'fastboot continue' */
+			g_update_location = update_location;
+			ret = 0;
+		}
+	}
 	ui_reset_progress();
 	pthread_mutex_unlock(&action_mutex);
-out:
-	free(update_location);
 	return ret;
 }
 
@@ -413,6 +434,8 @@ static void parse_cmdline_option(char *name)
 		g_2ndstageboot_part = strdup(value);
 		if (!g_2ndstageboot_part)
 			die();
+	} else if (!strcmp(name, "droidboot.updatepause")) {
+		g_update_pause = atoi(value);
 	} else {
 		pr_error("Unknown parameter %s, ignoring\n", name);
 	}
@@ -455,7 +478,7 @@ int main(int argc, char **argv)
 	if (vol)
 		try_update_sw(vol, 1);
 
-	if (g_use_autoboot) {
+	if (g_use_autoboot && !g_update_location) {
 		if (pthread_create(&t_auto, NULL, autoboot_thread, NULL)) {
 			pr_perror("pthread_create");
 			die();
