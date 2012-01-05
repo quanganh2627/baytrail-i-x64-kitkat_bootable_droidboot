@@ -10,7 +10,7 @@ LOCAL_SRC_FILES := \
 	droidboot.c \
 	fstab.c \
 
-LOCAL_CFLAGS := -DDEVICE_NAME=\"$(TARGET_DEVICE)\" \
+LOCAL_CFLAGS := -DDEVICE_NAME=\"$(TARGET_BOOTLOADER_BOARD_NAME)\" \
 	-W -Wall -Wno-unused-parameter -Werror
 
 LOCAL_MODULE := droidboot
