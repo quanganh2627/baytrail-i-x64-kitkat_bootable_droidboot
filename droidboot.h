@@ -30,7 +30,7 @@ extern char *g_update_location;
 
 #define DISK_CONFIG_LOCATION	"/system/etc/disk_layout.conf"
 #define RECOVERY_FSTAB_LOCATION	"/system/etc/recovery.fstab"
-#define DROIDBOOT_VERSION       "01.02"
+#define DROIDBOOT_VERSION       "01.03"
 
 /* In disk_layout.conf */
 #define CACHE_PTN		"cache"
