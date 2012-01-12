@@ -365,6 +365,11 @@ void start_default_kernel(void)
 	char basepath[PATH_MAX];
 	struct part_info *ptn;
 	ptn = find_part(disk_info, g_2ndstageboot_part);
+	if(ptn == NULL) {
+		pr_error("Couldn't find the second-stage boot partition (%s)\n",
+				g_2ndstageboot_part);
+		return;
+	}
 
 	if (mount_partition(ptn)) {
 		pr_error("Can't mount second-stage boot partition (%s)\n",

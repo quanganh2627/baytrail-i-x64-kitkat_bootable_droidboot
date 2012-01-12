@@ -101,6 +101,10 @@ void load_volume_table()
 				device_volumes =
 				    realloc(device_volumes,
 					    alloc * sizeof(Volume));
+				if (!device_volumes) {
+					pr_perror("malloc");
+					die();
+				}
 			}
 			device_volumes[num_volumes].mount_point =
 			    strdup(mount_point);
