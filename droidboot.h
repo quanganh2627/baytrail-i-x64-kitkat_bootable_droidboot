@@ -40,4 +40,11 @@ extern char *g_update_location;
 #define SDCARD_VOLUME		"/sdcard"
 #define CACHE_VOLUME		"/cache"
 
+#define MSEC_PER_SEC            (1000LL)
+
+#define BATTERY_UNKNOWN_TIME    (2 * MSEC_PER_SEC)
+#define POWER_ON_KEY_TIME       (2 * MSEC_PER_SEC)
+#define UNPLUGGED_SHUTDOWN_TIME (30 * MSEC_PER_SEC)
+#define CAPACITY_POLL_INTERVAL  (5 * MSEC_PER_SEC)
+
 #endif

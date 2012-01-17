@@ -43,8 +43,11 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <sys/mount.h>
-#include <minui.h>
 
+#include <minui/minui.h>
+#include <cutils/android_reboot.h>
+#include <cutils/klog.h>
+#include <charger/charger.h>
 #include <diskconfig/diskconfig.h>
 
 #include "aboot.h"
@@ -99,6 +102,9 @@ static int g_autoboot_delay_secs = 8;
 
 /* Default size of memory buffer for image data */
 static int g_scratch_size = 400;
+
+/* Minimum battery % before we do anything */
+static int g_min_battery = 10;
 
 /* If nonzero, wait for "fastboot continue" before applying a
  * detected SW update in try_update_sw() */
@@ -431,6 +437,8 @@ static void parse_cmdline_option(char *name)
 		g_autoboot_delay_secs = atoi(value);
 	} else if (!strcmp(name, "droidboot.scratch")) {
 		g_scratch_size = atoi(value);
+	} else if (!strcmp(name, "droidboot.minbatt")) {
+		g_min_battery = atoi(value);
 	} else if (!strcmp(name, "droidboot.bootpart")) {
 		g_2ndstageboot_part = strdup(value);
 		if (!g_2ndstageboot_part)
@@ -453,14 +461,41 @@ int main(int argc, char **argv)
 	pthread_t t_auto, t_input;
 	Volume *vol;
 
+
 	/* initialize libminui */
 	ui_init();
-	ev_init(input_callback, NULL);
 
-	ui_set_background(BACKGROUND_ICON_INSTALLING);
 
 	pr_info(" -- Droidboot %s for %s --\n", DROIDBOOT_VERSION, DEVICE_NAME);
 	import_kernel_cmdline(parse_cmdline_option);
+
+#ifdef USE_GUI
+	/* Enforce a minimum battery level */
+	if (g_min_battery != 0) {
+		pr_info("Verifying battery level >= %d%% before continuing\n",
+				g_min_battery);
+		klog_init();
+		klog_set_level(8);
+
+		switch (charger_run(g_min_battery, POWER_ON_KEY_TIME,
+					BATTERY_UNKNOWN_TIME,
+					UNPLUGGED_SHUTDOWN_TIME,
+					CAPACITY_POLL_INTERVAL)) {
+		case CHARGER_SHUTDOWN:
+			android_reboot(ANDROID_RB_POWEROFF, 0, 0);
+			break;
+		case CHARGER_PROCEED:
+			pr_info("Battery level is acceptable\n");
+			break;
+		default:
+			pr_error("mysterious return value from charger_run()\n");
+		}
+		ev_exit();
+	}
+#endif
+
+	ev_init(input_callback, NULL);
+	ui_set_background(BACKGROUND_ICON_INSTALLING);
 
 	if (argc > 1)
 		config_location = argv[1];

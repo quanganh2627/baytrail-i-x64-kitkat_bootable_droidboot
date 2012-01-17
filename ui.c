@@ -29,7 +29,7 @@
 #include <unistd.h>
 
 #include <cutils/android_reboot.h>
-#include <minui.h>
+#include <minui/minui.h>
 
 #include "droidboot_ui.h"
 
