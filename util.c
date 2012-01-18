@@ -147,9 +147,17 @@ int mount_partition_device(const char *device, const char *type, char *mountpoin
 	return 0;
 }
 
-int ext4_filesystem_checks(const char *device)
+int ext4_filesystem_checks(const char *device, struct part_info *ptn)
 {
 	int ret;
+	Volume *vol;
+	long long length;
+
+	vol = volume_for_device(device);
+	if (!vol) {
+		pr_error("%s not in recovery.fstab!\n", device);
+		return -1;
+	}
 
 	/* run fdisk to make sure the partition is OK */
 	ret = execute_command("/system/bin/e2fsck -C 0 -fn %s",
@@ -159,11 +167,21 @@ int ext4_filesystem_checks(const char *device)
 		return -1;
 	}
 
-	/* Resize the filesystem to fill the partition */
-	if (execute_command("/system/bin/resize2fs -F %s",
-				device) < 0) {
-		pr_error("could not resize filesystem "
-				"to fill disk\n");
+	/* Resize the filesystem according to vol->length:
+	 * length == 0 -> use all the available size
+	 * length < 0 -> make the partition '-length' bytes smaller that the available size
+	 * length > 0 -> make the partition 'length' bytes in size
+	 * In all cases, 'length' should be a multiple of 1024 */
+	if (vol->length == 0)
+		length = (long long)ptn->len_kb * 1024;
+	else if (vol->length < 0)
+		length = (long long)ptn->len_kb * 1024 + vol->length;
+	else
+		length = vol->length;
+	if (execute_command("/system/bin/resize2fs -F %s %lldK",
+				device, length / 1024) < 0) {
+		pr_error("could not resize filesystem to %lldK\n",
+				length / 1024);
 		return -1;
 	}
 

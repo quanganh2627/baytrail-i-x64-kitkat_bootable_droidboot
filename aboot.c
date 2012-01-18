@@ -238,7 +238,7 @@ static void cmd_flash(const char *part_name, void *data, unsigned sz)
 		}
 	}
 	if (do_ext_checks) {
-		if (ext4_filesystem_checks(device)) {
+		if (ext4_filesystem_checks(device, ptn)) {
 			fastboot_fail("ext4 filesystem error");
 			goto out;
 		}

@@ -19,6 +19,6 @@ void apply_sw_update(const char *location, int send_fb_ok);
 int check_ext_superblock(struct part_info *ptn, int *sb_present);
 int unmount_partition(struct part_info *ptn);
 int mount_partition_device(const char *device, const char *type, char *mountpoint);
-int ext4_filesystem_checks(const char *device);
+int ext4_filesystem_checks(const char *device, struct part_info *ptn);
 void import_kernel_cmdline(void (*callback)(char *name));
 #endif

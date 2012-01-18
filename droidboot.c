@@ -143,7 +143,7 @@ static int provision_partition(const char *name, Volume *source_volume)
 	/* Not checking device2; if people are declaring multiple devices
 	 * for cache and data, they're nuts */
 	if (!strcmp(source_volume->device, device)) {
-		if (ext4_filesystem_checks(device)) {
+		if (ext4_filesystem_checks(device, ptn)) {
 			pr_error("%s filesystem corrupted", name);
 			goto out;
 		}
