@@ -23,7 +23,7 @@
 
 #define pr_perror(x)	pr_error("%s failed: %s\n", x, strerror(errno))
 
-#define VERBOSE_DEBUG 1
+#define VERBOSE_DEBUG 0
 
 #ifdef USE_GUI
 #define pr_error(...) do { \
