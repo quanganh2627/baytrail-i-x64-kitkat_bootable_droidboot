@@ -153,8 +153,8 @@ static int cmd_flash_update(void *data, unsigned sz)
 	return -1;
 }
 
-/* Image command. Allows user to send a single gzipped file which
- * will be decompressed and written to a destination location. Typical
+/* Image command. Allows user to send a single file which
+ * will be written to a destination location. Typical
  * usage is to write to a disk device node, in order to flash a raw
  * partition, but can be used to write any file.
  *
