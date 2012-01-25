@@ -96,11 +96,11 @@ endif
 	$(hide) $(MKBOOTFS) $(droidboot_root_out) | $(MINIGZIP) > $@
 	@echo "Created Droidboot ramdisk: $@"
 
-droidboot_cmdline := "g_android.fastboot=1"
+droidboot_cmdline := g_android.fastboot=1
 ifneq ($(DROIDBOOT_SCRATCH_SIZE),)
-droidboot_cmdline += "droidboot.scratch=$(DROIDBOOT_SCRATCH_SIZE)"
+droidboot_cmdline += droidboot.scratch=$(DROIDBOOT_SCRATCH_SIZE)
 endif
-droidboot_cmdline += "$(BOARD_KERNEL_CMDLINE)"
+droidboot_cmdline += $(BOARD_KERNEL_CMDLINE)
 
 # Create a standard Android bootimage using the regular kernel and the
 # droidboot ramdisk.
