@@ -178,8 +178,8 @@ int ext4_filesystem_checks(const char *device, struct part_info *ptn)
 		length = (long long)ptn->len_kb * 1024 + vol->length;
 	else
 		length = vol->length;
-	if (execute_command("/system/bin/resize2fs -F %s %lldK",
-				device, length / 1024) < 0) {
+	if (execute_command("/system/bin/resize2fs -f -F %s %lldK",
+				device, length / 1024)) {
 		pr_error("could not resize filesystem to %lldK\n",
 				length / 1024);
 		return -1;
@@ -188,7 +188,7 @@ int ext4_filesystem_checks(const char *device, struct part_info *ptn)
 	/* Set mount count to 1 so that 1st mount on boot doesn't
 	 * result in complaints */
 	if (execute_command("/system/bin/tune2fs -C 1 %s",
-				device) < 0) {
+				device)) {
 		pr_error("tune2fs failed\n");
 		return -1;
 	}
