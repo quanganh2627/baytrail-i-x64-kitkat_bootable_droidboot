@@ -14,7 +14,6 @@ on init
     # USB Gadget initialization
     write /sys/class/android_usb/android0/enable 0
     write /sys/class/android_usb/android0/iManufacturer Intel
-    write /sys/class/android_usb/android0/iSerial </sys/devices/pci0000:00/0000:00:01.0/mmc_host/mmc0/mmc0:0001/cid
     write /sys/class/android_usb/android0/functions adb
     write /sys/class/android_usb/android0/idVendor 8087
     write /sys/class/android_usb/android0/idProduct 0829
@@ -29,13 +28,16 @@ on boot
 service ueventd /sbin/ueventd
     critical
 
+service watchdogd /system/bin/watchdogd
+    user root
+    oneshot
+
 service droidboot /system/bin/droidboot
     console
     oneshot
 
 service console /system/bin/sh
     console
-    disabled
 
 on property:init.svc.droidboot=stopped
     wait 2

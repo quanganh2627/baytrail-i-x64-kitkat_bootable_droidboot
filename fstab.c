@@ -87,7 +87,7 @@ void load_volume_table()
 		char *options = NULL;
 		char *device2 = strtok(NULL, " \t\n");
 		if (device2) {
-			if (device2[0] == '/') {
+			if (device2[0] == '/' || strncmp(device2, "none", 4) == 0) {
 				options = strtok(NULL, " \t\n");
 			} else {
 				options = device2;

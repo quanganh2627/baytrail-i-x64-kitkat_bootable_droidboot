@@ -496,6 +496,7 @@ int main(int argc, char **argv)
 
 	ev_init(input_callback, NULL);
 	ui_set_background(BACKGROUND_ICON_INSTALLING);
+	ui_show_text(1);
 
 	if (argc > 1)
 		config_location = argv[1];
