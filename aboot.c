@@ -337,18 +337,6 @@ static void cmd_reboot_bl(const char *arg, void *data, unsigned sz)
 	pr_error("Reboot failed");
 }
 
-static void cmd_continue(const char *arg, void *data, unsigned sz)
-{
-	if (g_update_location) {
-		apply_sw_update(g_update_location, 1);
-		fastboot_fail("Unable to apply SW update");
-	} else {
-		start_default_kernel();
-		fastboot_fail("Unable to boot default kernel!");
-	}
-}
-
-
 void aboot_register_commands(void)
 {
 	fastboot_register("oem", cmd_oem);
@@ -357,7 +345,7 @@ void aboot_register_commands(void)
 	fastboot_register("reboot-bootloader", cmd_reboot_bl);
 	fastboot_register("erase:", cmd_erase);
 	fastboot_register("flash:", cmd_flash);
-	fastboot_register("continue", cmd_continue);
+	fastboot_register("continue", cmd_reboot);
 
 	fastboot_publish("product", DEVICE_NAME);
 	fastboot_publish("kernel", "droidboot");

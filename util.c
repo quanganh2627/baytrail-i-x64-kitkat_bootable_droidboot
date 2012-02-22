@@ -366,53 +366,6 @@ int is_valid_blkdev(const char *node)
 	return 1;
 }
 
-
-int kexec_linux(char *basepath)
-{
-	char cmdline_buf[2048];
-	char cmdline_file[PATH_MAX];
-	int bytes_read;
-	int ret;
-	int fd;
-
-	/* Read the kernel command line */
-	snprintf(cmdline_file, sizeof(cmdline_file), "%s/cmdline", basepath);
-	fd = open(cmdline_file, O_RDONLY);
-	if (fd < 0) {
-		pr_error("can't open %s: %s", cmdline_file,
-				strerror(errno));
-		return -1;
-	}
-	bytes_read = read(fd, cmdline_buf, sizeof(cmdline_buf) - 1);
-	if (bytes_read < 0) {
-		pr_perror("read");
-		close(fd);
-		return -1;
-	}
-	cmdline_buf[bytes_read] = '\0';
-
-	/* Load the target kernel into RAM */
-	ret = execute_command("kexec -l %s/kernel --ramdisk=%s/ramdisk.img "
-			" --command-line=\"%s\"",
-		basepath, basepath, cmdline_buf);
-	if (ret != 0) {
-		pr_error("kexec load failed! (ret=%d)\n", ret);
-		close(fd);
-		return -1;
-	}
-	fastboot_okay("");
-
-	/* Pull the trigger */
-	sync();
-	execute_command("kexec -e");
-
-	/* Shouldn't get here! */
-	pr_error("kexec failed!\n");
-	close(fd);
-	return -1;
-}
-
-
 void apply_sw_update(const char *location, int send_fb_ok)
 {
 	struct part_info *cacheptn;

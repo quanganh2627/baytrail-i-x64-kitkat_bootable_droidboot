@@ -255,7 +255,6 @@ again:
 		for (cmd = cmdlist; cmd; cmd = cmd->next) {
 			if (memcmp(buffer, cmd->prefix, cmd->prefix_len))
 				continue;
-			disable_autoboot();
 			fastboot_state = STATE_COMMAND;
 			ui_show_indeterminate_progress();
 			pthread_mutex_lock(&action_mutex);

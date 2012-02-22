@@ -10,12 +10,9 @@
 
 #define MEGABYTE	(1024 * 1024)
 
-void disable_autoboot(void);
-void start_default_kernel(void);
-
 /* Inspect a volume looking for an automatic SW update. If it's
  * there, provision filesystems and apply it. */
-int try_update_sw(Volume *vol, int use_countdown);
+int try_update_sw(Volume *vol);
 
 /* global libdiskconfig data structure representing the intended layout of
  * the internal disk, as read from /etc/disk_layout.conf */
