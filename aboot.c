@@ -31,7 +31,6 @@
 
 #include <errno.h>
 #include <fcntl.h>
-
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -44,10 +43,8 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
-
 #include <cutils/android_reboot.h>
 #include <cutils/hashmap.h>
-#include <diskconfig/diskconfig.h>
 
 #include "fastboot.h"
 #include "droidboot.h"
@@ -57,6 +54,8 @@
 
 #define CMD_SYSTEM		"system"
 #define CMD_SHOWTEXT		"showtext"
+#define SYSTEM_BUF_SIZ     512    /* For system() and popen() calls. */
+#define FILE_NAME_SIZ    50     /* /dev/<whatever> */
 
 Hashmap *flash_cmds;
 Hashmap *oem_cmds;
@@ -101,153 +100,113 @@ int aboot_register_oem_cmd(char *key, oem_func callback)
 	return aboot_register_cmd(oem_cmds, key, callback);
 }
 
-/* Erase a named partition by creating a new empty partition on top of
- * its device node. No parameters. */
-static void cmd_erase(const char *part_name, void *data, unsigned sz)
+void cmd_erase(const char *part_name, void *data, unsigned sz)
 {
-	struct part_info *ptn;
+	char mnt_point[FILE_NAME_SIZ];
+	int ret;
+	sprintf(mnt_point, "/%s",part_name);
 
-	pr_info("%s: %s\n", __func__, part_name);
-	ptn = find_part(disk_info, part_name);
-	if (ptn == NULL) {
-		fastboot_fail("unknown partition name");
-		return;
-	}
+	/* supports fastboot -w who wants to erase userdata */
+	ui_print("ERASE %s...\n", part_name);
+	if (!strcmp(part_name, "userdata"))
+		sprintf(mnt_point, "/data");
+	ret = format_volume(mnt_point);
+	ui_print("ERASE %s\n", ret==0 ? "COMPLETE." : "FAILED!");
 
-	pr_debug("Erasing %s.\n", part_name);
-	if (erase_partition(ptn))
-		fastboot_fail("Can't erase partition");
-	else
+	if (ret==0)
 		fastboot_okay("");
-
+	else
+		fastboot_fail("unable to format");
 }
 
+#define OTA_UPDATE_FILE		"/cache/update.zip"
 
 static int cmd_flash_update(void *data, unsigned sz)
 {
-	struct part_info *cacheptn;
+	int fd;
+	char command[512];
 
-	cacheptn = find_part(disk_info, CACHE_PTN);
-	if (!cacheptn) {
-		pr_error("Couldn't find " CACHE_PTN " partition. Is your "
-				"disk_layout.conf valid?\n");
-		return -1;
-	}
-	if (mount_partition(cacheptn)) {
-		pr_error("Couldn't mount " CACHE_PTN "partition\n");
-		return -1;
-	}
-	/* Remove any old copy hanging around */
-	unlink("/mnt/" CACHE_PTN "/droidboot.update.zip");
-
-	/* Once the update is applied this file is deleted */
-	if (named_file_write("/mnt/" CACHE_PTN "/droidboot.update.zip",
-				data, sz)) {
-		pr_error("Couldn't write update package to " CACHE_PTN
-				" partition.\n");
-		unmount_partition(cacheptn);
-		return -1;
-	}
-	unmount_partition(cacheptn);
-	apply_sw_update(CACHE_VOLUME "/droidboot.update.zip", 1);
-	return -1;
-}
-
-/* Image command. Allows user to send a single file which
- * will be written to a destination location. Typical
- * usage is to write to a disk device node, in order to flash a raw
- * partition, but can be used to write any file.
- *
- * The parameter part_name can be one of several possibilities:
- *
- * "disk" : Write directly to the disk node specified in disk_layout.conf,
- *          whatever it is named there.
- * <name> : Look in the flash_cmds table and execute the callback function.
- *          If not found, lookup the named partition in disk_layout.conf 
- *          and write to its corresponding device node
- */
-static void cmd_flash(const char *part_name, void *data, unsigned sz)
-{
-	char *device;
-	struct part_info *ptn = NULL;
-	int free_device = 0;
-	int do_ext_checks = 0;
-	flash_func cb;
-
-	pr_verbose("cmd_flash %s %u\n", part_name, sz);
-
-	if (!strcmp(part_name, "disk")) {
-		device = disk_info->device;
-	} else if ( (cb = hashmapGet(flash_cmds, (char *)part_name)) ) {
-		/* Use our table of flash functions registered by platform
-		 * specific plugin libraries */
-		int cbret;
-		cbret = cb(data, sz);
-		if (cbret) {
-			pr_error("%s flash failed!\n", part_name);
-			fastboot_fail(part_name);
-		} else
-			fastboot_okay("");
-		return;
-	} else {
-		free_device = 1;
-		device = find_part_device(disk_info, part_name);
-		if (!device) {
-			fastboot_fail("unknown partition specified");
-			return;
-		}
-		ptn = find_part(disk_info, part_name);
+	ui_print("OTA_UPDATE...\n");
+	sprintf(command, "--update_package=" OTA_UPDATE_FILE);
+	if (ensure_path_mounted("/cache") != 0) {
+		pr_error("Unable to mount /cache!\n");
+		goto err;
 	}
 
-	pr_debug("Writing %u bytes to destination device: %s\n", sz, device);
-	if (!is_valid_blkdev(device)) {
-		fastboot_fail("invalid destination node. partition disks?");
-		goto out;
+	unlink(OTA_UPDATE_FILE);
+	if (named_file_write(OTA_UPDATE_FILE, data, sz) < 0) {
+		pr_error("Unable to write file: " OTA_UPDATE_FILE "\n");
+		goto err;
 	}
-
-	/* TODO add gzip support */
-	if (named_file_write(device, data, sz)) {
-		fastboot_fail("Can't write data to target device");
-		goto out;
+	if (access("/cache/recovery", F_OK) != 0)
+		if (mkdir("/cache/recovery", 777) != 0) {
+			pr_error("Unable to create /cache/recovery directory!\n");
+			goto err;
+	}
+	if ((fd = open("/cache/recovery/command", O_CREAT | O_WRONLY)) < 0) {
+		pr_error("Unable to open /cache/recovery/command file!\n");
+		goto err;
+	}
+	if (write(fd, command, strlen(command)) < 0) {
+		pr_error("Unable to write /cache/recovery/command file!\n");
+		goto err;
 	}
 	sync();
 
-	pr_debug("wrote %u bytes to %s\n", sz, device);
-
-	/* Check if we wrote to the base device node. If so,
-	 * re-sync the partition table in case we wrote out
-	 * a new one */
-	if (!strcmp(device, disk_info->device)) {
-		int fd = open(device, O_RDWR);
-		if (fd < 0) {
-			fastboot_fail("could not open device node");
-			goto out;
-		}
-		pr_verbose("sync partition table\n");
-		ioctl(fd, BLKRRPART, NULL);
-		close(fd);
-	}
-
-	/* Make sure this is really an ext4 partition before we try to
-	 * run some disk checks and resize it, ptn->type isn't sufficient
-	 * information */
-	if (ptn && ptn->type == PC_PART_TYPE_LINUX) {
-		if (check_ext_superblock(ptn, &do_ext_checks)) {
-			fastboot_fail("couldn't check superblock");
-			goto out;
-		}
-	}
-	if (do_ext_checks) {
-		if (ext4_filesystem_checks(device, ptn)) {
-			fastboot_fail("ext4 filesystem error");
-			goto out;
-		}
-	}
-
+	ui_print("Rebooting to recovery to apply update.\n");
+	pr_info("Rebooting into recovery console to apply update\n");
 	fastboot_okay("");
+	android_reboot(ANDROID_RB_RESTART2, 0, "recovery");
+
+	return 0;
+
+err:
+	ui_print("OTA_UPDATE FAILED!\n");
+	fastboot_fail("problem with creating ota update file!");
+	return -1;
+}
+
+static void cmd_flash(const char *part_name, void *data, unsigned sz)
+{
+	char path[FILE_NAME_SIZ];
+	int ret = -1;
+	flash_func cb;
+	Volume *v;
+
+	ui_print("FLASH %s...\n", part_name);
+
+	if ( (cb = hashmapGet(flash_cmds, (char *)part_name)) ) {
+		/* Use our table of flash functions registered by platform
+		 * specific plugin libraries */
+		if ((ret = cb(data, sz)) != 0)
+			pr_error("%s flash failed!\n", part_name);
+	} else {
+		if (part_name[0] == '/') {
+			snprintf(path, FILE_NAME_SIZ, "%s", part_name);
+		} else {
+			snprintf(path, FILE_NAME_SIZ, "/%s", part_name);
+			if ((v = volume_for_path(path)) == NULL) {
+				pr_error("unknown volume %s to flash!\n", path);
+				goto out;
+			}
+			snprintf(path, FILE_NAME_SIZ, "%s", v->device);
+		}
+		if ((ret = named_file_write(path, data, sz)) < 0) {
+			pr_error("Can't write data to target %s!\n", path);
+			goto out;
+		}
+		sync();
+	}
+
 out:
-	if (device && free_device)
-		free(device);
+	if (ret == 0) {
+		ui_print("FLASH COMPLETE!");
+		fastboot_okay("");
+	} else {
+		ui_print("FLASH FAILED!");
+		fastboot_fail("flash_cmds error!\n");
+	}
+	return;
 }
 
 static void cmd_oem(const char *arg, void *data, unsigned sz)

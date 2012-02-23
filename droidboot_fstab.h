@@ -44,5 +44,18 @@ Volume* volume_for_path(const char* path);
 // Return Volume* record for a particular device node (or NULL)
 Volume* volume_for_device(const char* device);
 
+// Make sure that the volume 'path' is on is mounted.  Returns 0 on
+// success (volume is mounted).
+int ensure_path_mounted(const char* path);
+
+// Make sure that the volume 'path' is on is mounted.  Returns 0 on
+// success (volume is unmounted);
+int ensure_path_unmounted(const char* path);
+
+// Reformat the given volume (must be the mount point only, eg
+// "/cache"), no paths permitted.  Attempts to unmount the volume if
+// it is mounted.
+int format_volume(const char* volume);
+
 #endif
 

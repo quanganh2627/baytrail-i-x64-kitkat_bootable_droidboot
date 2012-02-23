@@ -24,13 +24,16 @@
 #include <ctype.h>
 #include <stdio.h>
 
+#include "mtdutils/mtdutils.h"
+#include "mtdutils/mounts.h"
+#include "make_ext4fs.h"
 #include "droidboot_fstab.h"
-#include "droidboot.h"
-#include "droidboot_ui.h"
 #include "droidboot_util.h"
+#include "droidboot_ui.h"
+#include "droidboot.h"
 
-static int num_volumes = 0;
-static Volume *device_volumes = NULL;
+int num_volumes = 0;
+Volume *device_volumes = NULL;
 
 static int parse_options(char *options, Volume * volume)
 {
@@ -166,3 +169,149 @@ Volume *volume_for_device(const char *device)
 	}
 	return NULL;
 }
+
+int ensure_path_mounted(const char* path) {
+    Volume* v = volume_for_path(path);
+    if (v == NULL) {
+        pr_error("unknown volume for path [%s]\n", path);
+        return -1;
+    }
+    if (strcmp(v->fs_type, "ramdisk") == 0) {
+        // the ramdisk is always mounted.
+        return 0;
+    }
+
+    int result;
+    result = scan_mounted_volumes();
+    if (result < 0) {
+        pr_error("failed to scan mounted volumes\n");
+        return -1;
+    }
+
+    const MountedVolume* mv =
+        find_mounted_volume_by_mount_point(v->mount_point);
+    if (mv) {
+        // volume is already mounted
+        return 0;
+    }
+
+    mkdir(v->mount_point, 0755);  // in case it doesn't already exist
+
+    if (strcmp(v->fs_type, "yaffs2") == 0) {
+        // mount an MTD partition as a YAFFS2 filesystem.
+        mtd_scan_partitions();
+        const MtdPartition* partition;
+        partition = mtd_find_partition_by_name(v->device);
+        if (partition == NULL) {
+            pr_error("failed to find \"%s\" partition to mount at \"%s\"\n",
+                 v->device, v->mount_point);
+            return -1;
+        }
+        return mtd_mount_partition(partition, v->mount_point, v->fs_type, 0);
+    } else if (strcmp(v->fs_type, "ext4") == 0 ||
+               strcmp(v->fs_type, "vfat") == 0) {
+        result = mount(v->device, v->mount_point, v->fs_type,
+                       MS_NOATIME | MS_NODEV | MS_NODIRATIME, "");
+        if (result == 0) return 0;
+
+        if (v->device2) {
+            pr_warning("failed to mount %s (%s); trying %s\n",
+                 v->device, strerror(errno), v->device2);
+            result = mount(v->device2, v->mount_point, v->fs_type,
+                           MS_NOATIME | MS_NODEV | MS_NODIRATIME, "");
+            if (result == 0) return 0;
+        }
+
+        pr_error("failed to mount %s (%s)\n", v->mount_point, strerror(errno));
+        return -1;
+    }
+
+    pr_error("unknown fs_type \"%s\" for %s\n", v->fs_type, v->mount_point);
+    return -1;
+}
+
+int ensure_path_unmounted(const char* path) {
+    Volume* v = volume_for_path(path);
+    if (v == NULL) {
+        pr_error("unknown volume for path [%s]\n", path);
+        return -1;
+    }
+    if (strcmp(v->fs_type, "ramdisk") == 0) {
+        // the ramdisk is always mounted; you can't unmount it.
+        return -1;
+    }
+
+    int result;
+    result = scan_mounted_volumes();
+    if (result < 0) {
+        pr_error("failed to scan mounted volumes\n");
+        return -1;
+    }
+
+    const MountedVolume* mv =
+        find_mounted_volume_by_mount_point(v->mount_point);
+    if (mv == NULL) {
+        // volume is already unmounted
+        return 0;
+    }
+
+    return unmount_mounted_volume(mv);
+}
+
+int format_volume(const char* volume) {
+    Volume* v = volume_for_path(volume);
+    if (v == NULL) {
+        pr_error("unknown volume \"%s\"\n", volume);
+        return -1;
+    }
+    if (strcmp(v->fs_type, "ramdisk") == 0) {
+        // you can't format the ramdisk.
+        pr_error("can't format_volume \"%s\"", volume);
+        return -1;
+    }
+    if (strcmp(v->mount_point, volume) != 0) {
+        pr_error("can't give path \"%s\" to format_volume\n", volume);
+        return -1;
+    }
+
+    if (ensure_path_unmounted(volume) != 0) {
+        pr_error("format_volume failed to unmount \"%s\"\n", v->mount_point);
+        return -1;
+    }
+
+    if (strcmp(v->fs_type, "yaffs2") == 0 || strcmp(v->fs_type, "mtd") == 0) {
+        mtd_scan_partitions();
+        const MtdPartition* partition = mtd_find_partition_by_name(v->device);
+        if (partition == NULL) {
+            pr_error("format_volume: no MTD partition \"%s\"\n", v->device);
+            return -1;
+        }
+
+        MtdWriteContext *write = mtd_write_partition(partition);
+        if (write == NULL) {
+            pr_warning("format_volume: can't open MTD \"%s\"\n", v->device);
+            return -1;
+        } else if (mtd_erase_blocks(write, -1) == (off_t) -1) {
+            pr_warning("format_volume: can't erase MTD \"%s\"\n", v->device);
+            mtd_write_close(write);
+            return -1;
+        } else if (mtd_write_close(write)) {
+            pr_warning("format_volume: can't close MTD \"%s\"\n", v->device);
+            return -1;
+        }
+        return 0;
+    }
+
+    if (strcmp(v->fs_type, "ext4") == 0) {
+        int result = make_ext4fs(v->device, 0);
+        if (result != 0) {
+            pr_error("format_volume: make_extf4fs failed on %s\n", v->device);
+            return -1;
+        }
+        return 0;
+    }
+
+    pr_error("format_volume: fs_type \"%s\" unsupported\n", v->fs_type);
+    return -1;
+}
+

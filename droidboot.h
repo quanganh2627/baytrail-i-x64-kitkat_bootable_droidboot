@@ -10,10 +10,6 @@
 
 #define MEGABYTE	(1024 * 1024)
 
-/* global libdiskconfig data structure representing the intended layout of
- * the internal disk, as read from /etc/disk_layout.conf */
-extern struct disk_info *disk_info;
-
 #define DISK_CONFIG_LOCATION	"/system/etc/disk_layout.conf"
 #define RECOVERY_FSTAB_LOCATION	"/system/etc/recovery.fstab"
 #define DROIDBOOT_VERSION       "01.04"

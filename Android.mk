@@ -9,16 +9,17 @@ LOCAL_SRC_FILES := \
 	util.c \
 	droidboot.c \
 	fstab.c \
+	ufdisk.c
 
 LOCAL_CFLAGS := -DDEVICE_NAME=\"$(TARGET_BOOTLOADER_BOARD_NAME)\" \
 	-W -Wall -Wno-unused-parameter -Werror
 
 LOCAL_MODULE := droidboot
 LOCAL_MODULE_TAGS := eng
-LOCAL_SHARED_LIBRARIES := libdiskconfig liblog libext4_utils libz
-LOCAL_STATIC_LIBRARIES += libcharger libminui libpng libpixelflinger_static
+LOCAL_SHARED_LIBRARIES := liblog libext4_utils libz
+LOCAL_STATIC_LIBRARIES += libcharger libminui libmtdutils libpng libpixelflinger_static libc libcutils
 LOCAL_STATIC_LIBRARIES += $(TARGET_DROIDBOOT_LIBS) $(TARGET_DROIDBOOT_EXTRA_LIBS)
-LOCAL_C_INCLUDES += bootable/recovery
+LOCAL_C_INCLUDES += bootable/recovery system/extras/ext4_utils
 
 #libpixelflinger_static for x86 is using encoder under hardware/intel/apache-harmony
 ifeq ($(TARGET_ARCH),x86)
