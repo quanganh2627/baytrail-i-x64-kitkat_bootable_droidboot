@@ -80,9 +80,6 @@
  * internal disk, as read from /etc/disk_layout.conf */
 struct disk_info *disk_info;
 
-/* Synchronize operations which touch EMMC. Fastboot holds this any time it
- * executes a command. Threads which touch the disk should do likewise. */
-pthread_mutex_t action_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 /* Default size of memory buffer for image data */
 static int g_scratch_size = 400;
@@ -90,177 +87,6 @@ static int g_scratch_size = 400;
 /* Minimum battery % before we do anything */
 static int g_min_battery = 10;
 
-/* If nonzero, wait for "fastboot continue" before applying a
- * detected SW update in try_update_sw() */
-static int g_update_pause = 0;
-
-char *g_update_location = NULL;
-
-#define AUTO_UPDATE_FNAME	DEVICE_NAME ".auto-ota.zip"
-
-int (*platform_provision_function)(void);
-
-void set_platform_provision_function(int (*fn)(void))
-{
-	platform_provision_function = fn;
-}
-
-/* Set up a specific partition in preparation for auto-update The source_device
- * is the partition that the update is stored on; if it's the same
- * as the partition that we're performing this routine on, verify its
- * integrity and resize it instead of formatting.
- *
- * Note that erase_partition does a 'quick' format; the disk is not zeroed
- * out. */
-static int provision_partition(const char *name, Volume *source_volume)
-{
-	struct part_info *ptn;
-	char *device = NULL;
-	int ret = -1;
-
-	/* Set up cache partition */
-	ptn = find_part(disk_info, name);
-	if (!ptn) {
-		pr_error("Couldn't find %s partition. Is your "
-				"disk_layout.conf valid?", name);
-		goto out;
-	}
-	device = find_part_device(disk_info, ptn->name);
-	if (!device) {
-		pr_error("Can't get %s partition device node!", name);
-		goto out;
-	}
-	/* Not checking device2; if people are declaring multiple devices
-	 * for cache and data, they're nuts */
-	if (!strcmp(source_volume->device, device)) {
-		if (ext4_filesystem_checks(device, ptn)) {
-			pr_error("%s filesystem corrupted", name);
-			goto out;
-		}
-	} else {
-		if (erase_partition(ptn)) {
-			pr_error("Couldn't format %s partition", name);
-			goto out;
-		}
-	}
-
-	ret = 0;
-out:
-	free(device);
-	return ret;
-}
-
-/* Ensure the device's disk is set up in a sane way, such that it's possible
- * to apply a full OTA update */
-static int provisioning_checks(Volume *source_device)
-{
-	pr_debug("Preparing device for provisioning...");
-
-	if (platform_provision_function && platform_provision_function()) {
-		pr_error("Platform-speciifc provision function failed");
-		return -1;
-	}
-
-	if (provision_partition(CACHE_PTN, source_device)) {
-		return -1;
-	}
-
-	if (provision_partition(DATA_PTN, source_device)) {
-		return -1;
-	}
-
-	return 0;
-}
-
-/* Check a particular volume to see if there is an automatic OTA
- * package present on it, and if so, return a path which can be
- * fed to the command line of the recovery console.
- *
- * Don't report errors if we can't mount the volume or the
- * auto-ota file doesn't exist. */
-static char *detect_sw_update(Volume *vol)
-{
-	char *filename = NULL;
-	struct stat statbuf;
-	char *ret = NULL;
-	char *mountpoint = NULL;
-
-	if (asprintf(&mountpoint, "/mnt%s", vol->mount_point) < 0) {
-		pr_perror("asprintf");
-		die();
-	}
-
-	if (asprintf(&filename, "%s/" AUTO_UPDATE_FNAME,
-				mountpoint) < 0) {
-		pr_perror("asprintf");
-		die();
-	}
-	pr_debug("Looking for %s...", filename);
-
-	if (mount_partition_device(vol->device, vol->fs_type,
-			mountpoint)) {
-		if (!vol->device2 || mount_partition_device(vol->device2,
-				vol->fs_type, mountpoint))
-		{
-			pr_debug("Couldn't mount %s", vol->mount_point);
-			goto out;
-		}
-	}
-
-	if (stat(filename, &statbuf)) {
-		if (errno == ENOENT)
-			pr_debug("Coudln't find %s", filename);
-		else
-			pr_perror("stat");
-	} else {
-		ret = strdup(filename + 4); /* Nip off leading '/mnt' */
-		if (!ret) {
-			pr_perror("strdup");
-			die();
-		}
-		pr_info("OTA Update package found: %s", filename);
-	}
-out:
-	free(filename);
-	umount(mountpoint);
-	free(mountpoint);
-	return ret;
-}
-
-int try_update_sw(Volume *vol)
-{
-	int ret = 0;
-	char *update_location;
-
-	/* Check if we've already been here */
-	if (g_update_location)
-		return 0;
-
-	update_location = detect_sw_update(vol);
-	if (!update_location)
-		return 0;
-
-	ret = -1;
-
-	pthread_mutex_lock(&action_mutex);
-	ui_show_indeterminate_progress();
-	if (provisioning_checks(vol)) {
-		free(update_location);
-	} else {
-		if (!g_update_pause) {
-			apply_sw_update(update_location, 0);
-			free(update_location);
-		} else {
-			/* Stash the location for later use with
-			 * 'fastboot continue' */
-			g_update_location = update_location;
-			ret = 0;
-		}
-	}
-	ui_reset_progress();
-	pthread_mutex_unlock(&action_mutex);
-	return ret;
-}
 
 static int input_callback(int fd, short revents, void *data)
 {
@@ -342,8 +168,6 @@ static void parse_cmdline_option(char *name)
 		g_scratch_size = atoi(value);
 	} else if (!strcmp(name, "droidboot.minbatt")) {
 		g_min_battery = atoi(value);
-	} else if (!strcmp(name, "droidboot.updatepause")) {
-		g_update_pause = atoi(value);
 	} else {
 		pr_error("Unknown parameter %s, ignoring\n", name);
 	}
@@ -354,12 +178,9 @@ int main(int argc, char **argv)
 {
 	char *config_location;
 	pthread_t t_input;
-	Volume *vol;
-
 
 	/* initialize libminui */
 	ui_init();
-
 
 	pr_info(" -- Droidboot %s for %s --\n", DROIDBOOT_VERSION, DEVICE_NAME);
 	import_kernel_cmdline(parse_cmdline_option);
@@ -409,11 +230,6 @@ int main(int argc, char **argv)
 		pr_perror("pthread_create");
 		die();
 	}
-
-	vol = volume_for_path(SDCARD_VOLUME);
-	if (vol)
-		try_update_sw(vol);
-
 
 	pr_info("Listening for the fastboot protocol over USB.");
 	fastboot_init(g_scratch_size * MEGABYTE);
