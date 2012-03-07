@@ -42,3 +42,12 @@ service console /system/bin/sh
 on property:init.svc.droidboot=stopped
     wait 2
     start console
+
+service apk_logfs /system/bin/logcat -b system -b events -b main -b radio -n 20 -r 5000 -v threadtime -f /logs/aplog -K
+    disabled
+
+on property:service.apk_logfs.enable=1
+    start apk_logfs
+
+on property:service.apk_logfs.enable=0
+    stop apk_logfs

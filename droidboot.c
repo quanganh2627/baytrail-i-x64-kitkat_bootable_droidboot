@@ -45,6 +45,7 @@
 #include <sys/mount.h>
 #include <minui/minui.h>
 #include <cutils/android_reboot.h>
+#include <cutils/properties.h>
 #include <cutils/klog.h>
 #include <charger/charger.h>
 
@@ -184,6 +185,11 @@ int main(int argc, char **argv)
 
 	load_volume_table();
 	ufdisk_ensure_partition_created();
+
+	if (ensure_path_mounted("/logs") != 0)
+		pr_error("unable to mount the log partition\n");
+	else
+		property_set("service.apk_logfs.enable", "1");
 
 	aboot_register_commands();
 

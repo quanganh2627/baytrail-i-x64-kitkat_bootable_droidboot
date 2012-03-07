@@ -20,26 +20,49 @@
 
 #ifndef _DROIDBOOT_UI_H_
 #define _DROIDBOOT_UI_H_
+#include "logd.h"
+
+#ifndef LOG_TAG
+#define LOG_TAG "droidboot"
+#endif
+#define VERBOSE_DEBUG 0
 
 #define pr_perror(x)	pr_error("%s failed: %s\n", x, strerror(errno))
 
-#define VERBOSE_DEBUG 0
+#define LOGW(format, ...) \
+    __libc_android_log_print(ANDROID_LOG_WARN, LOG_TAG, (format), ##__VA_ARGS__ )
+#define LOGI(format, ...) \
+    __libc_android_log_print(ANDROID_LOG_INFO, LOG_TAG, (format), ##__VA_ARGS__ )
+#define LOGV(format, ...) \
+    __libc_android_log_print(ANDROID_LOG_VERBOSE, LOG_TAG, (format), ##__VA_ARGS__ )
+#define LOGD(format, ...) \
+    __libc_android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, (format), ##__VA_ARGS__ )
+#define pr_warning(format, ...) \
+	__libc_android_log_print(ANDROID_LOG_WARN, LOG_TAG, (format), ##__VA_ARGS__ )
+#define pr_info(format, ...) \
+	__libc_android_log_print(ANDROID_LOG_INFO, LOG_TAG, (format), ##__VA_ARGS__ )
+#define pr_debug(format, ...) \
+	__libc_android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, (format), ##__VA_ARGS__ )
+
+#if VERBOSE_DEBUG
+#define pr_verbose(format, ...) \
+	__libc_android_log_print(ANDROID_LOG_VERBOSE, LOG_TAG, (format), ##__VA_ARGS__ )
+#else
+#define pr_verbose(format, ...)				do { } while (0)
+#endif
 
 #ifdef USE_GUI
-#define pr_error(...) do { \
-	ui_print("E: " __VA_ARGS__); \
-	ui_set_background(BACKGROUND_ICON_ERROR); \
-	ui_show_text(1); \
-	} while (0)
-#define pr_warning(...)		ui_print("W: " __VA_ARGS__)
-#define pr_info(...)		ui_print("I: " __VA_ARGS__)
-#if VERBOSE_DEBUG
-/* Serial console only */
-#define pr_verbose(...)		printf("V: " __VA_ARGS__)
-#else
-#define pr_verbose(...)		do { } while (0)
-#endif
-#define pr_debug(...)		ui_print("D: " __VA_ARGS__)
+
+#define LOGE(format, ...) \
+    do { \
+        ui_print("E:" format, ##__VA_ARGS__); \
+        __libc_android_log_print(ANDROID_LOG_ERROR, LOG_TAG, (format), ##__VA_ARGS__ ); \
+    } while (0)
+#define pr_error(format, ...) \
+    do { \
+        ui_print("E:" format, ##__VA_ARGS__); \
+        __libc_android_log_print(ANDROID_LOG_ERROR, LOG_TAG, (format), ##__VA_ARGS__ ); \
+    } while (0)
 
 // Initialize the graphics system.
 void ui_init();
@@ -98,20 +121,10 @@ typedef struct {
 
 #else /* !USE_GUI */
 
-#ifndef LOG_TAG
-#define LOG_TAG "droidboot"
-#endif
-#include <cutils/log.h>
-
-#define pr_error(...)				printf("E: " __VA_ARGS__)
-#define pr_debug(...)				printf("D: " __VA_ARGS__)
-#define pr_info(...)				printf("I: " __VA_ARGS__)
-#define pr_warning(...)				printf("W: " __VA_ARGS__)
-#if VERBOSE_DEBUG
-#define pr_verbose(...)				printf("V: " __VA_ARGS__)
-#else
-#define pr_verbose(...)				do { } while (0)
-#endif
+#define LOGE(format, ...) \
+	__libc_android_log_print(ANDROID_LOG_ERROR, LOG_TAG, (format), ##__VA_ARGS__ );
+#define pr_error(format, ...) \
+	__libc_android_log_print(ANDROID_LOG_ERROR, LOG_TAG, (format), ##__VA_ARGS__ );
 
 #define ui_init()				do { } while (0)
 #define ui_print				pr_info
@@ -123,7 +136,4 @@ typedef struct {
 #define ui_show_text(x)				do { } while (0)
 
 #endif /* USE_GUI */
-
-
-
 #endif

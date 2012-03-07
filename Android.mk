@@ -19,7 +19,7 @@ LOCAL_MODULE_TAGS := eng
 LOCAL_SHARED_LIBRARIES := liblog libext4_utils libz
 LOCAL_STATIC_LIBRARIES += libcharger libminui libmtdutils libpng libpixelflinger_static libc libcutils
 LOCAL_STATIC_LIBRARIES += $(TARGET_DROIDBOOT_LIBS) $(TARGET_DROIDBOOT_EXTRA_LIBS)
-LOCAL_C_INCLUDES += bootable/recovery system/extras/ext4_utils
+LOCAL_C_INCLUDES += bootable/recovery system/extras/ext4_utils bionic/libc/private
 
 #libpixelflinger_static for x86 is using encoder under hardware/intel/apache-harmony
 ifeq ($(TARGET_ARCH),x86)
