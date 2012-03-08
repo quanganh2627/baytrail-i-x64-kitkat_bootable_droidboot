@@ -10,9 +10,10 @@ LOCAL_SRC_FILES := \
 	droidboot.c \
 	fstab.c \
 	ufdisk.c
-
+DROIDBOOT_OTA_UPDATE_FILE ?= /cache/update.zip
 LOCAL_CFLAGS := -DDEVICE_NAME=\"$(TARGET_BOOTLOADER_BOARD_NAME)\" \
-	-W -Wall -Wno-unused-parameter -Werror
+	-W -Wall -Wno-unused-parameter -Werror \
+	-D OTA_UPDATE_FILE='"$(DROIDBOOT_OTA_UPDATE_FILE)"'
 
 LOCAL_MODULE := droidboot
 LOCAL_MODULE_TAGS := eng

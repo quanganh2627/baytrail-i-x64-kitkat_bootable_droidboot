@@ -119,8 +119,6 @@ void cmd_erase(const char *part_name, void *data, unsigned sz)
 		fastboot_fail("unable to format");
 }
 
-#define OTA_UPDATE_FILE		"/cache/update.zip"
-
 static int cmd_flash_update(void *data, unsigned sz)
 {
 	int fd;
@@ -130,6 +128,10 @@ static int cmd_flash_update(void *data, unsigned sz)
 	sprintf(command, "--update_package=" OTA_UPDATE_FILE);
 	if (ensure_path_mounted("/cache") != 0) {
 		pr_error("Unable to mount /cache!\n");
+		goto err;
+	}
+	if (ensure_path_mounted(OTA_UPDATE_FILE) != 0) {
+		pr_error("Unable to mount update file storage filesystem!\n");
 		goto err;
 	}
 
