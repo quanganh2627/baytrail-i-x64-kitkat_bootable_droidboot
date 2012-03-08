@@ -40,6 +40,7 @@
 #include <stdarg.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <zlib.h>
 #include <linux/ext3_fs.h>
 #include <cutils/android_reboot.h>
 
@@ -53,6 +54,100 @@ void die(void)
 	pr_error("droidboot has encountered an unrecoverable problem, exiting!\n");
 	exit(1);
 }
+
+#define CHUNK 1024 * 256
+
+int named_file_write_decompress_gzip(const char *filename,
+	unsigned char *what, size_t sz)
+{
+	int data_in_mem, ret;
+	unsigned int have;
+	z_stream strm;
+	FILE *src, *dest;
+	unsigned char in[CHUNK], out[CHUNK];
+
+	dest = fopen(filename, "w");
+	if (!dest) {
+		pr_perror("fopen");
+		return -1;
+	}
+
+	if (strncmp((const char*)what, FASTBOOT_DOWNLOAD_TMP_FILE, sz) == 0) {
+		data_in_mem = 0;
+		src = fopen(FASTBOOT_DOWNLOAD_TMP_FILE, "r");
+	} else
+		data_in_mem = 1;
+
+	/* allocate inflate state */
+	strm.zalloc = Z_NULL;
+	strm.zfree = Z_NULL;
+	strm.opaque = Z_NULL;
+	strm.avail_in = 0;
+	strm.next_in = Z_NULL;
+	ret = inflateInit2(&strm, 15 + 32);
+	if (ret != Z_OK) {
+		pr_error("zlib inflateInit error");
+		fclose(dest);
+		return ret;
+	}
+
+	do {
+		if (data_in_mem) {
+			strm.avail_in = (sz > CHUNK) ? CHUNK : sz;
+			if (strm.avail_in == 0)
+				break;
+			strm.next_in = what;
+
+			what += strm.avail_in;
+			sz -= strm.avail_in;
+		} else {
+			strm.avail_in = fread(in, 1, CHUNK, src);
+			if (strm.avail_in == 0)
+				break;
+			strm.next_in = in;
+		}
+
+		/* run inflate() on input until output buffer not full */
+		do {
+			strm.avail_out = CHUNK;
+			strm.next_out = out;
+			ret = inflate(&strm, Z_NO_FLUSH);
+			if (ret == Z_STREAM_ERROR) {
+				pr_error("zlib state clobbered");
+				die();
+			}
+			switch (ret) {
+			case Z_NEED_DICT:
+				ret = Z_DATA_ERROR;     /* and fall through */
+			case Z_DATA_ERROR:
+			case Z_MEM_ERROR:
+				pr_perror("zlib memory/data/corruption error");
+				goto out;
+			}
+			have = CHUNK - strm.avail_out;
+			if (fwrite(out, 1, have, dest) != have ||
+					ferror(dest)) {
+				pr_perror("fwrite");
+				ret = -1;
+				goto out;
+			}
+		} while (strm.avail_out == 0);
+		/* done when inflate() says it's done */
+	} while (ret != Z_STREAM_END);
+
+	if (ret == Z_STREAM_END)
+		ret = 0;
+	else
+		pr_error("zlib data error");
+out:
+	/* clean up and return */
+	(void)inflateEnd(&strm);
+	if (!data_in_mem)
+		fclose(src);
+	fclose(dest);
+	return ret;
+}
+
 
 int named_file_write(const char *filename, const unsigned char *what,
 		size_t sz)
