@@ -147,6 +147,8 @@ static void parse_cmdline_option(char *name)
 int main(int argc, char **argv)
 {
 	pthread_t t_input;
+        freopen("/dev/console", "a", stdout); setbuf(stdout, NULL);
+        freopen("/dev/console", "a", stderr); setbuf(stderr, NULL);
 
 	/* initialize libminui */
 	ui_init();

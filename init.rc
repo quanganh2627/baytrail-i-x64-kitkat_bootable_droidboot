@@ -33,15 +33,10 @@ service watchdogd /system/bin/watchdogd
     oneshot
 
 service droidboot /system/bin/droidboot
-    console
     oneshot
 
 service console /system/bin/sh
     console
-
-on property:init.svc.droidboot=stopped
-    wait 2
-    start console
 
 service apk_logfs /system/bin/logcat -b system -b events -b main -b radio -n 20 -r 5000 -v threadtime -f /logs/aplog -K
     disabled
