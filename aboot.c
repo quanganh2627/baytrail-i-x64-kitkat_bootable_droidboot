@@ -285,7 +285,7 @@ static void cmd_reboot(const char *arg, void *data, unsigned sz)
 	fastboot_okay("");
 	sync();
 	pr_info("Rebooting!\n");
-	android_reboot(ANDROID_RB_RESTART, 0, 0);
+	android_reboot(ANDROID_RB_RESTART2, 0, "android");
 	pr_error("Reboot failed");
 }
 
