@@ -29,6 +29,8 @@
 #ifndef __APP_FASTBOOT_H
 #define __APP_FASTBOOT_H
 
+#define FASTBOOT_DOWNLOAD_TMP_FILE "/cache/fastboot.tmp"
+
 int fastboot_init(unsigned buffer_size);
 
 /* register a command handler 

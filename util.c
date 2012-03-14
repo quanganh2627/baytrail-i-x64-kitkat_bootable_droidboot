@@ -59,6 +59,22 @@ int named_file_write(const char *filename, const unsigned char *what,
 {
 	int fd;
 	int ret;
+	/* By convention, if "what" is equal to FASTBOOT_DOWNLOAD_TMP_FILE
+	   then the scratch was not big enough for containing the download,
+	   and the file was copied to filesystem directly.
+	   We then just rename the file.
+	   Probably its not a good idea for flash time to allow cross filesystem renaming.
+	   So let's say it is a feature not to handle errno == EXDEV
+	*/
+	if (strncmp((const char*)what, FASTBOOT_DOWNLOAD_TMP_FILE, sz) == 0) {
+		ret = rename((const char*)what, filename);
+		if (ret) {
+			pr_error("unable to rename file %s: %s\n",
+				 filename, strerror(errno));
+			return -1;
+		}
+		return 0;
+	}
 	fd = open(filename, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
 	if (fd < 0) {
 		pr_error("file_write: Can't open file %s: %s\n",

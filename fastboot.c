@@ -36,6 +36,7 @@
 #include <stdio.h>
 #include <pthread.h>
 
+#include <volumeutils/roots.h>
 #include "droidboot.h"
 #include "droidboot_ui.h"
 #include "fastboot.h"
@@ -107,6 +108,7 @@ static unsigned download_size;
 
 static unsigned fastboot_state = STATE_OFFLINE;
 int fb_fp = -1;
+static int tmp_fp = -1;
 int enable_fp;
 
 static int usb_read(void *_buf, unsigned len)
@@ -128,9 +130,22 @@ static int usb_read(void *_buf, unsigned len)
 			pr_perror("read");
 			goto oops;
 		}
-
+		if (tmp_fp < 0) {
+			buf += r;
+		} else {
+			/* we dont have enough memory in scratch
+			   write directly in /cache */
+			int w = 0, rv;
+			while (w < r) {
+				rv = write(tmp_fp, buf+w, r-w);
+				if (rv == -1) {
+					pr_perror("write to tmpfile");
+					goto oops;
+				}
+				w += rv;
+			}
+		}
 		count += r;
-		buf += r;
 		len -= r;
 
 		/* short transfer? */
@@ -219,8 +234,14 @@ static void cmd_download(const char *arg, void *data, unsigned sz)
 
 	download_size = 0;
 	if (len > download_max) {
-		fastboot_fail("data too large");
-		return;
+		if (tmp_fp >=0 )
+			close(tmp_fp);
+		ensure_path_mounted(FASTBOOT_DOWNLOAD_TMP_FILE);
+		tmp_fp = open(FASTBOOT_DOWNLOAD_TMP_FILE, O_RDWR | O_CREAT | O_TRUNC);
+		if (tmp_fp < 0) {
+			fastboot_fail("unable to create download file");
+			return;
+		}
 	}
 
 	sprintf(response, "DATA%08x", len);
@@ -229,9 +250,15 @@ static void cmd_download(const char *arg, void *data, unsigned sz)
 
 	r = usb_read(download_base, len);
 	if ((r < 0) || ((unsigned int)r != len)) {
-		pr_error("fastboot: cmd_download errro only got %d bytes\n", r);
+		pr_error("fastboot: cmd_download error only got %d bytes\n", r);
 		fastboot_state = STATE_ERROR;
 		return;
+	}
+	if (tmp_fp >=0) {
+		close(tmp_fp);
+		tmp_fp = -1;
+		strcpy(download_base, FASTBOOT_DOWNLOAD_TMP_FILE);
+		len = strlen(FASTBOOT_DOWNLOAD_TMP_FILE);
 	}
 	download_size = len;
 	fastboot_okay("");
