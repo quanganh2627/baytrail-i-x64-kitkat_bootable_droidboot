@@ -6,7 +6,8 @@
 #include <stdint.h>
 #include <pthread.h>
 
-#include <droidboot_fstab.h>
+#include <volumeutils/roots.h>
+#include <volumeutils/mounts.h>
 
 #define MEGABYTE	(1024 * 1024)
 

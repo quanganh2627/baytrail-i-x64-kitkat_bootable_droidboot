@@ -47,7 +47,6 @@
 #include "droidboot.h"
 #include "droidboot_ui.h"
 #include "droidboot_util.h"
-#include "droidboot_fstab.h"
 
 void die(void)
 {

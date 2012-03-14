@@ -7,9 +7,7 @@ LOCAL_SRC_FILES := \
 	aboot.c \
 	fastboot.c \
 	util.c \
-	droidboot.c \
-	fstab.c \
-	ufdisk.c
+	droidboot.c
 DROIDBOOT_OTA_UPDATE_FILE ?= /cache/update.zip
 LOCAL_CFLAGS := -DDEVICE_NAME=\"$(TARGET_BOOTLOADER_BOARD_NAME)\" \
 	-W -Wall -Wno-unused-parameter -Werror \
@@ -18,7 +16,7 @@ LOCAL_CFLAGS := -DDEVICE_NAME=\"$(TARGET_BOOTLOADER_BOARD_NAME)\" \
 LOCAL_MODULE := droidboot
 LOCAL_MODULE_TAGS := eng
 LOCAL_SHARED_LIBRARIES := liblog libext4_utils libz
-LOCAL_STATIC_LIBRARIES += libcharger libminui libmtdutils libpng libpixelflinger_static libc libcutils
+LOCAL_STATIC_LIBRARIES += libcharger libminui libmtdutils libpng libpixelflinger_static libc libcutils libvolumeutils libmtdutils
 LOCAL_STATIC_LIBRARIES += $(TARGET_DROIDBOOT_LIBS) $(TARGET_DROIDBOOT_EXTRA_LIBS)
 LOCAL_C_INCLUDES += bootable/recovery system/extras/ext4_utils bionic/libc/private
 
