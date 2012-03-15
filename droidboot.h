@@ -28,5 +28,6 @@
 #define POWER_ON_KEY_TIME       (2 * MSEC_PER_SEC)
 #define UNPLUGGED_SHUTDOWN_TIME (30 * MSEC_PER_SEC)
 #define CAPACITY_POLL_INTERVAL  (5 * MSEC_PER_SEC)
+#define MODE_NON_CHARGER        0
 
 #endif

@@ -164,7 +164,8 @@ int main(int argc, char **argv)
 		klog_init();
 		klog_set_level(8);
 
-		switch (charger_run(g_min_battery, POWER_ON_KEY_TIME,
+		switch (charger_run(g_min_battery, MODE_NON_CHARGER,
+					POWER_ON_KEY_TIME,
 					BATTERY_UNKNOWN_TIME,
 					UNPLUGGED_SHUTDOWN_TIME,
 					CAPACITY_POLL_INTERVAL)) {
