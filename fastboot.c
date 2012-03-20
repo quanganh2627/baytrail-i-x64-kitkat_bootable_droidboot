@@ -35,6 +35,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <pthread.h>
+#include <cutils/properties.h>
 
 #include <volumeutils/roots.h>
 #include "droidboot.h"
@@ -333,6 +334,7 @@ int fastboot_init(unsigned size)
 	fastboot_register("download:", cmd_download);
 	fastboot_publish("version", "0.5");
 
+	property_set("sys.usb.config", "adb");
 	fastboot_handler(NULL);
 
 	return 0;
