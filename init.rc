@@ -78,3 +78,15 @@ on property:service.apk_logfs.enable=1
 
 on property:service.apk_logfs.enable=0
     stop apk_logfs
+
+# Add Proxy service for Modem provisionning
+service proxy /sbin/proxy -d none -m /dev/ttyIFX0 -p /dev/ttyGS0 -t on
+    disabled
+
+on property:service.proxy.enable=1
+    setprop sys.usb.config rndis,acm,adb
+    start proxy
+
+on property:service.proxy.enable=0
+    stop proxy
+    setprop sys.usb.config adb
