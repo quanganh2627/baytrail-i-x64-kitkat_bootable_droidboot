@@ -104,7 +104,7 @@ void cmd_erase(const char *part_name, void *data, unsigned sz)
 {
 	char mnt_point[FILE_NAME_SIZ];
 	int ret;
-	sprintf(mnt_point, "/%s",part_name);
+	snprintf(mnt_point,FILE_NAME_SIZ, "/%s",part_name);
 
 	/* supports fastboot -w who wants to erase userdata */
 	ui_print("ERASE %s...\n", part_name);
