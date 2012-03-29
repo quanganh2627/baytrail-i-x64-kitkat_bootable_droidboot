@@ -60,6 +60,10 @@
 Hashmap *flash_cmds;
 Hashmap *oem_cmds;
 
+#ifdef USE_GUI
+Hashmap *ui_cmds;
+#endif
+
 static bool strcompare(void *keyA, void *keyB)
 {
 	return !strcmp(keyA, keyB);
@@ -99,6 +103,13 @@ int aboot_register_oem_cmd(char *key, oem_func callback)
 {
 	return aboot_register_cmd(oem_cmds, key, callback);
 }
+
+#ifdef USE_GUI
+int aboot_register_ui_cmd(char *key, ui_func callback)
+{
+	return aboot_register_cmd(ui_cmds, key, callback);
+}
+#endif
 
 void cmd_erase(const char *part_name, void *data, unsigned sz)
 {
@@ -307,6 +318,13 @@ void aboot_register_commands(void)
 		pr_error("Memory allocation error\n");
 		die();
 	}
+#ifdef USE_GUI
+	ui_cmds = hashmapCreate(8, strhash, strcompare);
+	if (!ui_cmds) {
+		pr_error("Memory allocation error\n");
+		die();
+	}
+#endif
 
 	aboot_register_flash_cmd("update", cmd_flash_update);
 

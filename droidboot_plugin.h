@@ -25,6 +25,12 @@ typedef int (*flash_func)(void *data, unsigned sz);
 
 typedef int (*oem_func)(int argc, char **argv);
 
+#ifdef USE_GUI
+typedef int (*ui_func)(int type, char *info, unsigned sz);
+
+int aboot_register_ui_cmd(char *key, ui_func callback);
+#endif
+
 int aboot_register_flash_cmd(char *key, flash_func callback);
 
 int aboot_register_oem_cmd(char *key, oem_func callback);

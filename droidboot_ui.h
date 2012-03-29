@@ -79,6 +79,15 @@ enum {
 	BACKGROUND_ICON_ERROR,
 	NUM_BACKGROUND_ICONS
 };
+
+#define UI_GET_SYSTEM_INFO		"get_system_info"
+
+enum {
+	IFWI_VERSION,
+	SERIAL_NUM,
+	PRODUCT_NAME,
+};
+
 void ui_set_background(int icon);
 
 // Show a progress bar and define the scope of the next operation:
