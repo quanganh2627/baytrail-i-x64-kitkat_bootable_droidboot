@@ -128,7 +128,7 @@ static int usb_read(void *_buf, unsigned len)
 
 		r = read(fb_fp, buf, xfer);
 		if (r < 0) {
-			pr_perror("read");
+			pr_warning("read");
 			goto oops;
 		}
 		if (tmp_fp < 0) {
@@ -198,15 +198,24 @@ void fastboot_ack(const char *code, const char *reason)
 
 }
 
+#define TEMP_BUFFER_SIZE		512
+#define RESULT_FAIL_STRING		"RESULT: FAIL("
 void fastboot_fail(const char *reason)
 {
-	pr_error("ack FAIL %s\n", reason);
+	char buf[TEMP_BUFFER_SIZE];
+
+	sprintf(buf, RESULT_FAIL_STRING);
+	strncat(buf, reason, TEMP_BUFFER_SIZE - 2 - strlen(RESULT_FAIL_STRING));
+	strcat(buf, ")");
+	ui_msg(ALERT, buf);
+	ui_stop_process_bar();
 	fastboot_ack("FAIL", reason);
 }
 
 void fastboot_okay(const char *info)
 {
-	pr_debug("ack OKAY %s\n", info);
+	ui_msg(TIPS, "RESULT: OKAY");
+	ui_stop_process_bar();
 	fastboot_ack("OKAY", info);
 }
 
@@ -231,6 +240,7 @@ static void cmd_download(const char *arg, void *data, unsigned sz)
 	int r;
 
 	len = strtoul(arg, NULL, 16);
+	ui_print("RECEIVE DATA...\n");
 	pr_debug("fastboot: cmd_download %d bytes\n", len);
 
 	download_size = 0;
@@ -269,6 +279,7 @@ static void fastboot_command_loop(void)
 {
 	struct fastboot_cmd *cmd;
 	int r;
+	ui_print("FASTBOOT CMD WAITING...\n");
 	pr_debug("fastboot: processing commands\n");
 
 again:
@@ -284,10 +295,11 @@ again:
 			if (memcmp(buffer, cmd->prefix, cmd->prefix_len))
 				continue;
 			fastboot_state = STATE_COMMAND;
-			ui_show_indeterminate_progress();
+			ui_set_screen_state(1);
+			ui_msg(TIPS, "CMD(%s)...", buffer);
+			ui_start_process_bar();
 			cmd->handle((const char *)buffer + cmd->prefix_len,
 				    (void *)download_base, download_size);
-			ui_reset_progress();
 			if (fastboot_state == STATE_COMMAND)
 				fastboot_fail("unknown reason");
 			goto again;
@@ -297,7 +309,8 @@ again:
 
 	}
 	fastboot_state = STATE_OFFLINE;
-	pr_error("fastboot: oops!\n");
+	ui_print("FASTBOOT OFFLINE!\n");
+	pr_warning("fastboot: oops!\n");
 }
 
 
@@ -312,6 +325,7 @@ static int fastboot_handler(void *arg)
 			sleep(1);
 			continue;
 		}
+		ui_print("FASTBOOT ONLINE.\n");
 		fastboot_command_loop();
 		close(fb_fp);
 		fb_fp = -1;

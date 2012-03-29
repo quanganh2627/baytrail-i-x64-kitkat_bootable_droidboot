@@ -41,17 +41,20 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/reboot.h>
 #include <unistd.h>
 #include <sys/mount.h>
 #include <minui/minui.h>
 #include <cutils/android_reboot.h>
 #include <cutils/properties.h>
 #include <cutils/klog.h>
+#include <cutils/hashmap.h>
 #include <charger/charger.h>
 #include <volumeutils/ufdisk.h>
 
 #include "aboot.h"
 #include "droidboot_util.h"
+#include "droidboot_plugin.h"
 #include "droidboot.h"
 #include "fastboot.h"
 #include "droidboot_ui.h"
@@ -61,62 +64,185 @@
  * registration functions for device-specific extensions. */
 #include "register.inc"
 
-/* NOTE: Droidboot uses two sources of information about the disk. There
- * is disk_layout.conf which specifies the physical partition layout on
- * the disk via libdiskconfig. There is also recovery.fstab which gives
- * detail on the filesystems associates with these partitions, see fstab.c.
- * The device node is used to link these two sources when necessary; the
- * 'name' fields are typically not the same.
- *
- * It would be best to have this in a single data store, but we wanted to
- * leverage existing android mechanisms whenever possible, there are already
- * too many different places in the build where filesystem data is recorded.
- * So there is a little bit of ugly gymnastics involved when both sources
- * need to be used.
- */
-
 /* Default size of memory buffer for image data */
 static int g_scratch_size = 400;
 
 /* Minimum battery % before we do anything */
 static int g_min_battery = 10;
 
+#ifdef USE_GUI
 
-static int input_callback(int fd, short revents, void *data)
+#define NO_ACTION           -1
+#define HIGHLIGHT_UP        -2
+#define HIGHLIGHT_DOWN      -3
+#define SELECT_ITEM         -4
+
+enum {
+	ITEM_BOOTLOADER,
+	ITEM_REBOOT,
+	ITEM_RECOVERY,
+	ITEM_POWEROFF
+};
+
+extern struct color white;
+extern struct color green;
+extern struct color brown;
+
+static char **title, **info;
+static struct color* title_clr[] = {&brown, NULL};
+static struct color* info_clr[] = {&white, &white, &white, &white, &white, &white, &green, &green, &green, NULL};
+
+static char* menu[] = {"REBOOT DROIDBOOT",
+								   "REBOOT",
+								   "RECOVERY",
+								   "POWER OFF", NULL};
+
+static int table_init(char*** table, int width, int height)
 {
-	struct input_event ev;
-	int ret;
+	int i;
 
-	ret = ev_get_input(fd, revents, &ev);
-	if (ret)
+	if ((*table = malloc(height * sizeof(char*))) == NULL)
 		return -1;
-
-	pr_verbose("Event type: %x, code: %x, value: %x\n",
-				ev.type, ev.code,
-				ev.value);
-
-	switch (ev.type) {
-		case EV_KEY:
-			break;
-		default:
-			break;
+	for (i = 0; i < height; i++) {
+		if (((*table)[i] = malloc(width * sizeof(char))) == NULL)
+			return -1;
+		memset((*table)[i], 0, width);
 	}
 	return 0;
 }
 
-
-static void *input_listener_thread(void *arg)
+static void table_exit(char ** table, int height)
 {
-	pr_verbose("begin input listener thread\n");
+	int i;
 
-	while (1) {
-		if (!ev_wait(-1))
-			ev_dispatch();
+	if (table) {
+		for (i = 0; i < height; i++)
+			if (table[i])   free(table[i]);
 	}
-	pr_verbose("exit input listener thread\n");
-
-	return NULL;
 }
+
+#define SYSFS_FORCE_SHUTDOWN	"/sys/module/intel_mid_osip/parameters/force_shutdown_occured"
+void force_shutdown()
+{
+	int fd;
+	char c = '1';
+
+	pr_info("[SHTDWN] %s, force shutdown", __func__);
+	if ((fd = open(SYSFS_FORCE_SHUTDOWN, O_WRONLY)) < 0) {
+		write(fd, &c, 1);
+		close(fd);
+	} else
+		pr_info("[SHUTDOWN] Open %s error!\n", SYSFS_FORCE_SHUTDOWN);
+	sync();
+	reboot(LINUX_REBOOT_CMD_POWER_OFF);
+}
+
+static void goto_recovery()
+{
+	if (ui_block_visible(INFO) == VISIBLE)
+		table_exit(info, INFO_MAX);
+	if (ui_block_visible(TITLE) == VISIBLE)
+		table_exit(title, TITLE_MAX);
+	sleep(1);
+	android_reboot(ANDROID_RB_RESTART2, 0, "recovery");
+	ui_msg(ALERT, "SWITCH TO RECOVERY FAILED!");
+}
+
+#define BUF_IFWI_SZ			6
+#define BUF_PRODUCT_SZ		10
+#define BUF_SERIALNUM_SZ		20
+extern Hashmap *ui_cmds;
+static int get_info()
+{
+	int i;
+	char ifwi[BUF_IFWI_SZ], product[BUF_PRODUCT_SZ], serialnum[BUF_SERIALNUM_SZ];
+	ui_func cb;
+
+	cb = hashmapGet(ui_cmds, UI_GET_SYSTEM_INFO);
+	if (cb == NULL) {
+		pr_error("Get ui_cmd: %s error!\n", UI_GET_SYSTEM_INFO);
+		return -1;
+	}
+	memset(ifwi, 0, BUF_IFWI_SZ);
+	memset(product, 0, BUF_PRODUCT_SZ);
+	memset(serialnum, 0, BUF_SERIALNUM_SZ);
+	cb(IFWI_VERSION, ifwi, BUF_IFWI_SZ);
+	cb(PRODUCT_NAME, product, BUF_PRODUCT_SZ);
+	cb(SERIAL_NUM, serialnum, BUF_SERIALNUM_SZ);
+
+	for(i = 0; i < MAX_COLS-1; i++) {
+		info[0][i] = '_';
+		info[5][i] = '_';
+	}
+
+	snprintf(info[1], MAX_COLS, "IFWI VERSION: %s", ifwi);
+	snprintf(info[2], MAX_COLS, "SERIAL_NUM: %s", serialnum);
+	snprintf(info[3], MAX_COLS, "DROIDBOOT VERSION: %s", DROIDBOOT_VERSION);
+	snprintf(info[4], MAX_COLS, "PRODUCT: %s", product);
+	snprintf(info[7], MAX_COLS, "SELECT - VOL_UP OR VOL_DOWN");
+	snprintf(info[8], MAX_COLS, "EXCUTE - POWER OR CAMERA");
+
+	return 0;
+}
+
+extern int device_handle_key(int key_code, int visible);
+static int get_menu_selection(char** items, int initial_selection) {
+	ui_clear_key_queue();
+	ui_start_menu(items, initial_selection);
+	int selected = initial_selection;
+	int chosen_item = -1;
+
+	while (chosen_item < 0) {
+		int key = ui_wait_key();
+		int visible = ui_block_visible(MENU);
+		int action = device_handle_key(key, visible);
+
+		if (ui_get_screen_state() == 0)
+			ui_set_screen_state(1);
+		else
+			switch (action) {
+				case HIGHLIGHT_UP:
+					--selected;
+					selected = ui_menu_select(selected);
+					break;
+				case HIGHLIGHT_DOWN:
+					++selected;
+					selected = ui_menu_select(selected);
+					break;
+				case SELECT_ITEM:
+					chosen_item = selected;
+					break;
+				case NO_ACTION:
+					break;
+			}
+	}
+	return chosen_item;
+}
+
+static void prompt_and_wait()
+{
+	for (;;) {
+		int chosen_item = get_menu_selection(menu, 0);
+		switch (chosen_item) {
+			case ITEM_BOOTLOADER:
+				sync();
+				android_reboot(ANDROID_RB_RESTART2, 0, "bootloader");
+				break;
+			case ITEM_RECOVERY:
+				sync();
+				goto_recovery();
+				break;
+			case ITEM_REBOOT:
+				sync();
+				android_reboot(ANDROID_RB_RESTART2, 0, "android");
+				break;
+			case ITEM_POWEROFF:
+				force_shutdown();
+				break;
+		}
+	}
+}
+#endif
 
 static void parse_cmdline_option(char *name)
 {
@@ -142,20 +268,27 @@ static void parse_cmdline_option(char *name)
 	}
 }
 
+static void *fastboot_thread(void *arg)
+{
+	pr_info("Listening for the fastboot protocol over USB.");
+	ui_print("FASTBOOT INIT...\n");
+	fastboot_init(g_scratch_size * MEGABYTE);
+	return NULL;
+}
 
 int main(int argc, char **argv)
 {
-	pthread_t t_input;
-        freopen("/dev/console", "a", stdout); setbuf(stdout, NULL);
-        freopen("/dev/console", "a", stderr); setbuf(stderr, NULL);
-
-	/* initialize libminui */
-	ui_init();
+	freopen("/dev/console", "a", stdout); setbuf(stdout, NULL);
+	freopen("/dev/console", "a", stderr); setbuf(stderr, NULL);
 
 	pr_info(" -- Droidboot %s for %s --\n", DROIDBOOT_VERSION, DEVICE_NAME);
 	import_kernel_cmdline(parse_cmdline_option);
 
+	aboot_register_commands();
+	register_droidboot_plugins();
+
 #ifdef USE_GUI
+	ui_init();
 	/* Enforce a minimum battery level */
 	if (g_min_battery != 0) {
 		pr_info("Verifying battery level >= %d%% before continuing\n",
@@ -177,18 +310,37 @@ int main(int argc, char **argv)
 		default:
 			pr_error("mysterious return value from charger_run()\n");
 		}
-		ev_exit();
 	}
+
+	ui_event_init();
+	ui_set_background(BACKGROUND_ICON_BACKGROUND);
+
+	//Init title table
+	if (table_init(&title, MAX_COLS, TITLE_MAX) == 0) {
+		snprintf(title[0], MAX_COLS, "                  DROIDBOOT PROVISION OS");
+		ui_block_init(TITLE, (char**)title, title_clr);
+	} else {
+		pr_error("Init title table error!\n");
+	}
+	//Init info table
+	if (table_init(&info, MAX_COLS, INFO_MAX) == 0) {
+		if(get_info() < 0)
+			pr_error("get_info error!\n");
+		ui_block_init(INFO, (char**)info, info_clr);
+	} else {
+		pr_error("Init info table error!\n");
+	}
+	ui_block_show(MSG);
 #endif
 
-	ev_init(input_callback, NULL);
-	ui_set_background(BACKGROUND_ICON_INSTALLING);
-	ui_show_text(1);
-
+	ui_show_process(VISIBLE);
 	load_volume_table();
 	if (ufdisk_need_create_partition()) {
-		pr_info("PARTITION EMMC...");
+		ui_msg(TIPS, "PARTITION EMMC...");
+		ui_start_process_bar();
 		ufdisk_create_partition();
+		ui_msg(TIPS, " ");
+		ui_stop_process_bar();
 	}
 
 	if (ensure_path_mounted("/logs") != 0)
@@ -196,19 +348,16 @@ int main(int argc, char **argv)
 	else
 		property_set("service.apk_logfs.enable", "1");
 
-	aboot_register_commands();
+#ifdef USE_GUI
+	pthread_t t;
+	pthread_create(&t, NULL, fastboot_thread, NULL);
 
-	register_droidboot_plugins();
-
-	if (pthread_create(&t_input, NULL, input_listener_thread,
-					NULL)) {
-		pr_perror("pthread_create");
-		die();
-	}
-
-	pr_info("Listening for the fastboot protocol over USB.");
-	fastboot_init(g_scratch_size * MEGABYTE);
+	//wait for user's choice
+	prompt_and_wait();
+#else
+	fastboot_thread(NULL);
+#endif
 
 	/* Shouldn't get here */
-	exit(1);
+	return 0;
 }

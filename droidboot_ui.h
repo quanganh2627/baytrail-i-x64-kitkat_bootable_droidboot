@@ -22,9 +22,11 @@
 #define _DROIDBOOT_UI_H_
 #include "logd.h"
 
+/* logcat support */
 #ifndef LOG_TAG
 #define LOG_TAG "droidboot"
 #endif
+
 #define VERBOSE_DEBUG 0
 
 #define pr_perror(x)	pr_error("%s failed: %s\n", x, strerror(errno))
@@ -43,7 +45,6 @@
 	__libc_android_log_print(ANDROID_LOG_INFO, LOG_TAG, (format), ##__VA_ARGS__ )
 #define pr_debug(format, ...) \
 	__libc_android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, (format), ##__VA_ARGS__ )
-
 #if VERBOSE_DEBUG
 #define pr_verbose(format, ...) \
 	__libc_android_log_print(ANDROID_LOG_VERBOSE, LOG_TAG, (format), ##__VA_ARGS__ )
@@ -51,8 +52,19 @@
 #define pr_verbose(format, ...)				do { } while (0)
 #endif
 
-#ifdef USE_GUI
+//UI messge types
+enum {
+	ALERT,
+	TIPS
+};
 
+//Show or hidden UI block
+enum {
+	HIDDEN,
+	VISIBLE
+};
+
+#ifdef USE_GUI
 #define LOGE(format, ...) \
     do { \
         ui_print("E:" format, ##__VA_ARGS__); \
@@ -64,85 +76,104 @@
         __libc_android_log_print(ANDROID_LOG_ERROR, LOG_TAG, (format), ##__VA_ARGS__ ); \
     } while (0)
 
-// Initialize the graphics system.
-void ui_init();
-
-// Write a message to the on-screen log shown with Alt-L (also to stderr).
-// The screen is small, and users may need to report these messages to support,
-// so keep the output short and not too cryptic.
-void ui_print(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
-
-// Set the icon (normally the only thing visible besides the progress bar).
-enum {
-	BACKGROUND_ICON_NONE,
-	BACKGROUND_ICON_INSTALLING,
-	BACKGROUND_ICON_ERROR,
-	NUM_BACKGROUND_ICONS
-};
+//default const UI values.
+#define MAX_COLS		60
+#define MAX_ROWS		34
+#define BLANK_SIZE		1
+#define TITLE_TOP		0
+#define TITLE_MAX		1
+#define INFO_TOP		(TITLE_TOP + TITLE_MAX)
+#define INFO_MAX		10
+#define MENU_TOP		(INFO_TOP + INFO_MAX + BLANK_SIZE)
+#define MENU_MAX		4
+#define MSG_TOP			(MAX_ROWS - MSG_MAX)
+#define MSG_MAX			1
+#define LOG_TOP			(MSG_TOP - LOG_MAX)
+#define LOG_MAX			10
+#define CHAR_WIDTH		10
+#define CHAR_HEIGHT		30
 
 #define UI_GET_SYSTEM_INFO		"get_system_info"
 
+//icons
+enum {
+  BACKGROUND_ICON_NONE,
+  BACKGROUND_ICON_BACKGROUND,
+  NUM_BACKGROUND_ICONS
+};
+
+//UI block types
+enum {
+	TITLE,
+	INFO,
+	MENU,
+	LOG,
+	MSG,
+	BLOCK_NUM
+};
+
+//system info type for get_system_info ui_cmd.
 enum {
 	IFWI_VERSION,
 	SERIAL_NUM,
 	PRODUCT_NAME,
 };
 
+struct color {
+	unsigned char r;
+	unsigned char g;
+	unsigned char b;
+	unsigned char a;
+};
+
+struct ui_block {
+	int type;
+	int top;
+	int rows;
+	int show;
+	struct color** clr_table;
+	char (*text_table) [MAX_COLS];
+};
+
+void ui_set_screen_state(int state);
+int ui_get_screen_state(void);
 void ui_set_background(int icon);
-
-// Show a progress bar and define the scope of the next operation:
-//   portion - fraction of the progress bar the next operation will use
-//   seconds - expected time interval (progress bar moves at this minimum rate)
-void ui_show_progress(float portion, int seconds);
-void ui_set_progress(float fraction);  // 0.0 - 1.0 within the defined scope
-
-// Default allocation of progress bar segments to operations
-static const int VERIFICATION_PROGRESS_TIME = 60;
-static const float VERIFICATION_PROGRESS_FRACTION = 0.25;
-static const float DEFAULT_FILES_PROGRESS_FRACTION = 0.4;
-static const float DEFAULT_IMAGE_PROGRESS_FRACTION = 0.1;
-
-// Show a rotating "barberpole" for ongoing operations.  Updates automatically.
-void ui_show_indeterminate_progress();
-
-// Hide and reset the progress bar.
-void ui_reset_progress();
-
-void ui_show_text(int visible);
-
-typedef struct {
-	// number of frames in indeterminate progress bar animation
-	int indeterminate_frames;
-
-	// number of frames per second to try to maintain when animating
-	int update_fps;
-
-	// number of frames in installing animation.  may be zero for a
-	// static installation icon.
-	int installing_frames;
-
-	// the install icon is animated by drawing images containing the
-	// changing part over the base icon.  These specify the
-	// coordinates of the upper-left corner.
-	int install_overlay_offset_x;
-	int install_overlay_offset_y;
-} UIParameters;
+void ui_block_init(int type, char **titles, struct color **clrs);
+void ui_block_show(int type);
+void ui_block_hide(int type);
+int ui_block_visible(int type);
+void ui_start_process_bar();
+void ui_stop_process_bar();
+void ui_show_process(int show);
+void ui_print(const char *fmt, ...);
+void ui_msg(int type, const char *fmt, ...);
+void ui_start_menu(char** items, int initial_selection);
+int ui_menu_select(int sel);
+int ui_wait_key();
+int ui_key_pressed(int key);
+void ui_clear_key_queue();
+void ui_event_init(void);
+void ui_init();
 
 #else /* !USE_GUI */
 
 #define LOGE(format, ...) \
-	__libc_android_log_print(ANDROID_LOG_ERROR, LOG_TAG, (format), ##__VA_ARGS__ );
+	do { \
+	__libc_android_log_print(ANDROID_LOG_ERROR, LOG_TAG, (format), ##__VA_ARGS__ ); \
+	} while (0)
 #define pr_error(format, ...) \
-	__libc_android_log_print(ANDROID_LOG_ERROR, LOG_TAG, (format), ##__VA_ARGS__ );
+	do { \
+	__libc_android_log_print(ANDROID_LOG_ERROR, LOG_TAG, (format), ##__VA_ARGS__ ); \
+	} while (0)
 
-#define ui_init()				do { } while (0)
-#define ui_print				pr_info
 #define ui_set_background(x)			do { } while (0)
-#define ui_show_progress(x, y)			do { } while (0)
-#define ui_set_progress(x)			do { } while (0)
-#define ui_show_indeterminate_progress()	do { } while (0)
-#define ui_reset_progress()			do { } while (0)
-#define ui_show_text(x)				do { } while (0)
+#define ui_start_process_bar()			do { } while (0)
+#define ui_stop_process_bar()			do { } while (0)
+#define ui_show_process(x)				do { } while (0)
+#define ui_set_screen_state(x)			do { } while (0)
+#define ui_print							pr_info
+#define ui_msg(x, format, ...)			pr_info(format, ##__VA_ARGS__);
+#define ui_init()							do { } while (0)
 
 #endif /* USE_GUI */
-#endif
+#endif /* _DROIDBOOT_UI_H_ */

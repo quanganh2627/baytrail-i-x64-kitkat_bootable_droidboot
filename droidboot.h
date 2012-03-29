@@ -11,17 +11,7 @@
 
 #define MEGABYTE	(1024 * 1024)
 
-#define DISK_CONFIG_LOCATION	"/system/etc/disk_layout.conf"
-#define RECOVERY_FSTAB_LOCATION	"/system/etc/recovery.fstab"
-#define DROIDBOOT_VERSION       "01.04"
-
-/* In disk_layout.conf */
-#define CACHE_PTN		"cache"
-#define DATA_PTN		"userdata"
-
-/* Volume entry in recovery.fstab for the SD card */
-#define SDCARD_VOLUME		"/sdcard"
-#define CACHE_VOLUME		"/cache"
+#define DROIDBOOT_VERSION       "2.0"
 
 #define MSEC_PER_SEC            (1000LL)
 

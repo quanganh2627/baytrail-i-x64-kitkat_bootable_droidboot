@@ -1,464 +1,641 @@
-/*
- * Copyright (C) 2007 The Android Open Source Project
+/*************************************************************************
+ * Copyright(c) 2011 Intel Corporation. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
+ * http://www.apache.org/licenses/LICENSE-2.0
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- */
+ *
+ * **************************************************************************/
 
-#include <errno.h>
-#include <fcntl.h>
 #include <linux/input.h>
-#include <pthread.h>
-#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <time.h>
-#include <unistd.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <pthread.h>
+#include <dirent.h>
 
-#include <cutils/android_reboot.h>
-#include <minui/minui.h>
-
+#include "minui/minui.h"
 #include "droidboot_ui.h"
 
-#define MAX_COLS 96
-#define MAX_ROWS 32
+//color table, BGRA format
+struct color white = {223, 215, 200, 255};
+struct color black = {0, 0, 0, 255};
+struct color black_tr = {0, 0, 0, 160};
+struct color red = {255, 30, 0, 255};
+struct color green = {0, 191, 255, 255};
+struct color yellow = {255, 215, 0, 255};
+struct color brown = {128, 42, 42, 255};
+struct color gray = {150, 150, 150, 255};
 
-#define CHAR_WIDTH 10
-#define CHAR_HEIGHT 18
+static struct color* title_clr[TITLE_MAX];
+static struct color* info_clr[INFO_MAX];
+static struct color* menu_clr[MENU_MAX];
+static struct color* log_clr[LOG_MAX];
+static struct color* msg_clr[MSG_MAX];
 
-#define UI_WAIT_KEY_TIMEOUT_SEC    120
+static char title[TITLE_MAX][MAX_COLS] = {{'\0'}};
+static char info[INFO_MAX][MAX_COLS] = {{'\0'}};
+static char menu[MENU_MAX][MAX_COLS] = {{'\0'}};
+static char log[LOG_MAX][MAX_COLS] = {{'\0'}};
+static char msg[MSG_MAX][MAX_COLS] = {{'\0'}};
 
-UIParameters ui_parameters = {
-    6,       // indeterminate progress bar frames
-    20,      // fps
-    7,       // installation icon frames (0 == static image)
-    23, 83,  // installation icon overlay offset
+static struct ui_block UI_BLOCK[BLOCK_NUM] = {
+	[TITLE] = {
+		.type       = TITLE,
+		.top        = TITLE_TOP,
+		.rows       = TITLE_MAX,
+		.show       = HIDDEN,
+		.clr_table  = title_clr,
+		.text_table = title,
+	},
+	[INFO] = {
+		.type       = INFO,
+		.top        = INFO_TOP,
+		.rows       = INFO_MAX,
+		.show       = HIDDEN,
+		.clr_table  = info_clr,
+		.text_table = info,
+	},
+	[MENU] = {
+		.type       = MENU,
+		.top        = MENU_TOP,
+		.rows       = MENU_MAX,
+		.show       = HIDDEN,
+		.clr_table  = menu_clr,
+		.text_table = menu,
+	},
+	[LOG] = {
+		.type       = LOG,
+		.top        = LOG_TOP,
+		.rows       = LOG_MAX,
+		.show       = HIDDEN,
+		.clr_table  = log_clr,
+		.text_table = log,
+	},
+	[MSG] = {
+		.type       = MSG,
+		.top        = MSG_TOP,
+		.rows       = MSG_MAX,
+		.show       = HIDDEN,
+		.clr_table  = msg_clr,
+		.text_table = msg,
+	}
 };
 
+#define PROGRESSBAR_INDETERMINATE_STATES 6
+
+static int fb_width, fb_height;
+static int log_row, log_col, log_top;
+static int menu_items = 0, menu_sel = 0;
+
+static struct color* title_dclr = &brown;
+static struct color* info_dclr = &white;
+static struct color* menu_dclr = &green;
+static struct color* log_dclr = &gray;
+static struct color* msg_dclr = &green;
+static struct color* menu_sclr = &yellow;
+
+static gr_surface gCurrentIcon = NULL;
 static pthread_mutex_t gUpdateMutex = PTHREAD_MUTEX_INITIALIZER;
 static gr_surface gBackgroundIcon[NUM_BACKGROUND_ICONS];
-static gr_surface *gInstallationOverlay;
-static gr_surface *gProgressBarIndeterminate;
-static gr_surface gProgressBarEmpty;
-static gr_surface gProgressBarFill;
+static gr_surface gProgressBarIndeterminate[PROGRESSBAR_INDETERMINATE_STATES];
+static int show_process = 0;
+static int process_frame = 0;
+static volatile char process_update = 0;
 
 static const struct { gr_surface* surface; const char *name; } BITMAPS[] = {
-    { &gBackgroundIcon[BACKGROUND_ICON_INSTALLING], "icon_installing" },
-    { &gBackgroundIcon[BACKGROUND_ICON_ERROR],      "icon_error" },
-    { &gProgressBarEmpty,               "progress_empty" },
-    { &gProgressBarFill,                "progress_fill" },
-    { NULL,                             NULL },
+    { &gBackgroundIcon[BACKGROUND_ICON_BACKGROUND], "background" },
+    { &gProgressBarIndeterminate[0],    "indeterminate01" },
+    { &gProgressBarIndeterminate[1],    "indeterminate02" },
+    { &gProgressBarIndeterminate[2],    "indeterminate03" },
+    { &gProgressBarIndeterminate[3],    "indeterminate04" },
+    { &gProgressBarIndeterminate[4],    "indeterminate05" },
+    { &gProgressBarIndeterminate[5],    "indeterminate06" },
+    { NULL,                             				NULL },
 };
 
-static int gCurrentIcon = 0;
-static int gInstallingFrame = 0;
+// Key event input queue
+static pthread_mutex_t key_queue_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t key_queue_cond = PTHREAD_COND_INITIALIZER;
+static int key_queue[256], key_queue_len = 0;
+static volatile char key_pressed[KEY_MAX + 1];
 
-static enum ProgressBarType {
-    PROGRESSBAR_TYPE_NONE,
-    PROGRESSBAR_TYPE_INDETERMINATE,
-    PROGRESSBAR_TYPE_NORMAL,
-} gProgressBarType = PROGRESSBAR_TYPE_NONE;
+#define SCREENSAVER_DELAY 30000
+#define BRIGHTNESS_DELAY 100
+#define TARGET_BRIGHTNESS 40
+#define SYSFS_BACKLIGHT "/sys/devices/virtual/backlight"
 
-// Progress bar scope of current operation
-static float gProgressScopeStart = 0, gProgressScopeSize = 0, gProgress = 0;
-static double gProgressScopeTime, gProgressScopeDuration;
-
-// Set to 1 when both graphics pages are the same (except for the progress bar)
-static int gPagesIdentical = 0;
-
-// Log text overlay, displayed when a magic key is pressed
-static char text[MAX_ROWS][MAX_COLS];
-static int text_cols = 0, text_rows = 0;
-static int text_col = 0, text_row = 0, text_top = 0;
+static ui_timer_t *gScreenSaverTimer;
+static ui_timer_t *gBrightnessTimer;
+static ui_timer_t *gProgressTimer;
+static int gCurBrightness = TARGET_BRIGHTNESS;
+static char gBrightnessPath[255];
+static int gScreenState = 1;
+static int gTargetScreenState = 1;
 static int show_text = 0;
-static pthread_mutex_t gTextMutex = PTHREAD_MUTEX_INITIALIZER;
 
-static char menu[MAX_ROWS][MAX_COLS];
-static int show_menu = 0;
-static int menu_top = 0, menu_items = 0, menu_sel = 0;
+/**** screen state, and screen saver   *****/
 
-// Return the current time as a double (including fractions of a second).
-static double now() {
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    return tv.tv_sec + tv.tv_usec / 1000000.0;
-}
+extern int set_screen_state(int);
+extern int acquire_wake_lock(int, const char*);
 
-// Draw the given frame over the installation overlay animation.  The
-// background is not cleared or draw with the base icon first; we
-// assume that the frame already contains some other frame of the
-// animation.  Does nothing if no overlay animation is defined.
-// Should only be called with gUpdateMutex locked.
-static void draw_install_overlay_locked(int frame) {
-    if (gInstallationOverlay == NULL) return;
-    gr_surface surface = gInstallationOverlay[frame];
-    int iconWidth = gr_get_width(surface);
-    int iconHeight = gr_get_height(surface);
-    gr_blit(surface, 0, 0, iconWidth, iconHeight,
-            ui_parameters.install_overlay_offset_x,
-            ui_parameters.install_overlay_offset_y);
-}
-
-// Clear the screen and draw the currently selected background icon (if any).
-// Should only be called with gUpdateMutex locked.
-static void draw_background_locked(int icon)
+static int set_back_brightness_timer(void*data)
 {
-    gPagesIdentical = 0;
-    gr_color(0, 0, 0, 255);
-    gr_fill(0, 0, gr_fb_width(), gr_fb_height());
+	int ret = TIMER_STOP;
+	char buf[32];
+	FILE *file;
+	struct dirent *entry;
+	DIR *dir;
+	int val;
+	const char *name;
+	char *path = gBrightnessPath;
+	if(path[0]==0) {
+		dir = opendir(SYSFS_BACKLIGHT);
+		if (dir == NULL) {
+			ui_print("Could not open %s\n", SYSFS_BACKLIGHT);
+			return TIMER_STOP;
+		}
+		while ((entry = readdir(dir))) {
+			name = entry->d_name;
+			snprintf(path, 255, "%s/%s/brightness", SYSFS_BACKLIGHT, name);
+			if (access(path, 0) == 0) {
+				break;
+			}
+		}
+		closedir(dir);
+	}
+	val = gCurBrightness;
+	if(gTargetScreenState && gCurBrightness < TARGET_BRIGHTNESS)
+		val += 10;
+	if(gTargetScreenState == 0 && gCurBrightness > 0)
+		val -= 10;
 
-    if (icon) {
-        gr_surface surface = gBackgroundIcon[icon];
-        int iconWidth = gr_get_width(surface);
-        int iconHeight = gr_get_height(surface);
-        int iconX = (gr_fb_width() - iconWidth) / 2;
-        int iconY = (gr_fb_height() - iconHeight) / 2;
-        gr_blit(surface, 0, 0, iconWidth, iconHeight, iconX, iconY);
-        if (icon == BACKGROUND_ICON_INSTALLING) {
-            draw_install_overlay_locked(gInstallingFrame);
-        }
-    }
+	if (val != gCurBrightness &&
+		(file = fopen(path, "w+")) != NULL) {
+		snprintf(buf, 32, "%d", val);
+		fwrite(buf, strlen(buf), 1, file);
+		gCurBrightness = val;
+		fclose(file);
+		ret = TIMER_AGAIN;
+		if(val == 0)
+			set_screen_state(0);
+	}
+
+	return ret;
+}
+
+void ui_set_screen_state(int state)
+{
+	/* force restart the screen saver */
+	ui_start_timer(gScreenSaverTimer, SCREENSAVER_DELAY);
+	if (gTargetScreenState == state)
+		return;
+	gTargetScreenState = state;
+	if(state)
+		set_screen_state(state);
+	ui_start_timer(gBrightnessTimer, BRIGHTNESS_DELAY);
+}
+
+int ui_get_screen_state(void)
+{
+	return gScreenState;
+}
+
+static void *screen_state_thread(void *cookie)
+{
+	int fd, err;
+	char buf;
+	while(1)
+	{
+		fd = open("/sys/power/wait_for_fb_sleep", O_RDONLY, 0);
+		do {
+			err = read(fd, &buf, 1);
+			fprintf(stderr,"wait for sleep %d %d\n", err, errno);
+		} while (err < 0 && errno == EINTR);
+		pthread_mutex_lock(&gUpdateMutex);
+		gScreenState = 0;
+		pthread_mutex_unlock(&gUpdateMutex);
+				ui_stop_timer(gScreenSaverTimer);
+		close(fd);
+		fd = open("/sys/power/wait_for_fb_wake", O_RDONLY, 0);
+		do {
+			err = read(fd, &buf, 1);
+			fprintf(stderr,"wait for wake %d %d\n", err, errno);
+		} while (err < 0 && errno == EINTR);
+		pthread_mutex_lock(&gUpdateMutex);
+		gScreenState = 1;
+		pthread_mutex_unlock(&gUpdateMutex);
+		close(fd);
+				ui_start_timer(gScreenSaverTimer, SCREENSAVER_DELAY);
+
+	}
+	return NULL;
+}
+
+static int screen_saver_timer_cb(void *data)
+{
+	ui_set_screen_state(0);
+	return TIMER_STOP;
+}
+
+static void ui_gr_color(struct color* clr)
+{
+	gr_color(clr->r, clr->g, clr->b, clr->a);
+}
+
+static void ui_gr_color_fill(struct color* clr)
+{
+	ui_gr_color(clr);
+	gr_fill(0, 0, fb_width, fb_height);
 }
 
 // Draw the progress bar (if any) on the screen.  Does not flip pages.
 // Should only be called with gUpdateMutex locked.
 static void draw_progress_locked()
 {
-    if (gCurrentIcon == BACKGROUND_ICON_INSTALLING) {
-        draw_install_overlay_locked(gInstallingFrame);
-    }
+	int width = gr_get_width(gProgressBarIndeterminate[0]);
+	int height = gr_get_height(gProgressBarIndeterminate[0]);
 
-    if (gProgressBarType != PROGRESSBAR_TYPE_NONE) {
-        int iconHeight = gr_get_height(gBackgroundIcon[BACKGROUND_ICON_INSTALLING]);
-        int width = gr_get_width(gProgressBarEmpty);
-        int height = gr_get_height(gProgressBarEmpty);
+	int dx = (fb_width - width)/2;
+	int dy = fb_height - 1.5 * CHAR_HEIGHT;
 
-        int dx = (gr_fb_width() - width)/2;
-        int dy = (3*gr_fb_height() + iconHeight - 2*height)/4;
+	// Erase behind the progress bar (in case this was a progress-only update)
+	gr_color(0, 0, 0, 255);
+	gr_fill(dx, dy, width, height);
 
-        // Erase behind the progress bar (in case this was a progress-only update)
-        gr_color(0, 0, 0, 255);
-        gr_fill(dx, dy, width, height);
+	gr_blit(gProgressBarIndeterminate[process_frame], 0, 0, width, height, dx, dy);
+}
 
-        if (gProgressBarType == PROGRESSBAR_TYPE_NORMAL) {
-            float progress = gProgressScopeStart + gProgress * gProgressScopeSize;
-            int pos = (int) (progress * width);
+static void update_progress_locked(void)
+{
+	draw_progress_locked();  // Draw only the progress bar
+	gr_flip();
+}
 
-            if (pos > 0) {
-                gr_blit(gProgressBarFill, 0, 0, pos, height, dx, dy);
-            }
-            if (pos < width-1) {
-                gr_blit(gProgressBarEmpty, pos, 0, width-pos, height, dx+pos, dy);
-            }
-        }
+static int progress_timer_cb(void *data)
+{
+	if (process_update) {
+		if (show_process) {
+			pthread_mutex_lock(&gUpdateMutex);
+			update_progress_locked();
+			process_frame = (process_frame + 1) % PROGRESSBAR_INDETERMINATE_STATES;
+			pthread_mutex_unlock(&gUpdateMutex);
+		}
+		return TIMER_AGAIN;
+	} else
+		return TIMER_STOP;
+}
 
-        if (gProgressBarType == PROGRESSBAR_TYPE_INDETERMINATE) {
-            static int frame = 0;
-            gr_blit(gProgressBarIndeterminate[frame], 0, 0, width, height, dx, dy);
-            frame = (frame + 1) % ui_parameters.indeterminate_frames;
-        }
-    }
+
+// Clear the screen and draw the currently selected background icon (if any).
+// Should only be called with gUpdateMutex locked.
+static void draw_background_locked(gr_surface icon)
+{
+	ui_gr_color_fill(&black);
+
+	if (icon) {
+		int iconWidth = gr_get_width(icon);
+		int iconHeight = gr_get_height(icon);
+		int iconX = (fb_width - iconWidth) / 2;
+		int iconY = (fb_height - iconHeight) / 2;
+		gr_blit(icon, 0, 0, iconWidth, iconHeight, iconX, iconY);
+	}
+	if (show_process)
+		draw_progress_locked();
 }
 
 static void draw_text_line(int row, const char* t) {
   if (t[0] != '\0') {
-    gr_text(0, (row+1)*CHAR_HEIGHT-1, t);
+	gr_text(0, (row+1)*CHAR_HEIGHT-1, t);
   }
 }
-
 // Redraw everything on the screen.  Does not flip pages.
 // Should only be called with gUpdateMutex locked.
-static void draw_screen_locked(void)
+static void draw_screen_locked()
 {
-    draw_background_locked(gCurrentIcon);
-    draw_progress_locked();
+	int i, j;
 
-    if (show_text) {
-        gr_color(0, 0, 0, 160);
-        gr_fill(0, 0, gr_fb_width(), gr_fb_height());
-
-        int i = 0;
-        if (show_menu) {
-            gr_color(64, 96, 255, 255);
-            gr_fill(0, (menu_top+menu_sel) * CHAR_HEIGHT,
-                    gr_fb_width(), (menu_top+menu_sel+1)*CHAR_HEIGHT+1);
-
-            for (; i < menu_top + menu_items; ++i) {
-                if (i == menu_top + menu_sel) {
-                    gr_color(255, 255, 255, 255);
-                    draw_text_line(i, menu[i]);
-                    gr_color(64, 96, 255, 255);
-                } else {
-                    draw_text_line(i, menu[i]);
-                }
-            }
-            gr_fill(0, i*CHAR_HEIGHT+CHAR_HEIGHT/2-1,
-                    gr_fb_width(), i*CHAR_HEIGHT+CHAR_HEIGHT/2+1);
-            ++i;
-        }
-
-        gr_color(255, 255, 0, 255);
-
-        pthread_mutex_lock(&gTextMutex);
-        for (; i < text_rows; ++i) {
-            draw_text_line(i, text[(i+text_top) % text_rows]);
-        }
-        pthread_mutex_unlock(&gTextMutex);
-    }
+	draw_background_locked(gCurrentIcon);
+	ui_gr_color_fill(&black_tr);
+	for (i = 0; i < BLOCK_NUM; i++)
+		if (UI_BLOCK[i].show == VISIBLE) {
+			if (i == LOG) {
+				ui_gr_color(UI_BLOCK[i].clr_table[0]);
+				for (j = 0; j < UI_BLOCK[i].rows; j++)
+					draw_text_line(UI_BLOCK[i].top+j, UI_BLOCK[i].text_table[(j+log_top) % UI_BLOCK[i].rows]);
+			} else {
+				for (j = 0; j < UI_BLOCK[i].rows; j++) {
+					ui_gr_color(UI_BLOCK[i].clr_table[j]);
+					draw_text_line(UI_BLOCK[i].top+j, UI_BLOCK[i].text_table[j]);
+				}
+			}
+		}
 }
 
 // Redraw everything on the screen and flip the screen (make it visible).
 // Should only be called with gUpdateMutex locked.
 static void update_screen_locked(void)
 {
-    draw_screen_locked();
-    gr_flip();
+	draw_screen_locked();
+	gr_flip();
 }
 
-// Updates only the progress bar, if possible, otherwise redraws the screen.
-// Should only be called with gUpdateMutex locked.
-static void update_progress_locked(void)
+static void set_block_text(int type, char **text)
 {
-    if (show_text || !gPagesIdentical) {
-        draw_screen_locked();    // Must redraw the whole screen
-        gPagesIdentical = 1;
-    } else {
-        draw_progress_locked();  // Draw only the progress bar and overlays
-    }
-    gr_flip();
+	int i;
+	for (i = 0; i < UI_BLOCK[type].rows; i++)
+		UI_BLOCK[type].text_table[i][0] = '\0';
+	for (i = 0; i < UI_BLOCK[type].rows; i++) {
+		if (text[i] == NULL) break;
+		strncpy(UI_BLOCK[type].text_table[i], text[i], strlen(text[i]) < MAX_COLS-1 ? strlen(text[i]) : MAX_COLS - 1);
+	}
 }
 
-// Keeps the progress bar updated, even when the process is otherwise busy.
-static void *progress_thread(void *cookie)
+static void set_block_clr(int type, struct color *clr)
 {
-    double interval = 1.0 / ui_parameters.update_fps;
-    for (;;) {
-        double start = now();
-        pthread_mutex_lock(&gUpdateMutex);
+	int i;
 
-        int redraw = 0;
-
-        // update the installation animation, if active
-        if (gCurrentIcon == BACKGROUND_ICON_INSTALLING &&
-            ui_parameters.installing_frames > 0 &&
-            !show_text) {
-            gInstallingFrame =
-                (gInstallingFrame + 1) % ui_parameters.installing_frames;
-            redraw = 1;
-        }
-
-        // update the progress bar animation, if active
-        if (gProgressBarType == PROGRESSBAR_TYPE_INDETERMINATE && !show_text) {
-            redraw = 1;
-        }
-
-        // move the progress bar forward on timed intervals, if configured
-        int duration = gProgressScopeDuration;
-        if (gProgressBarType == PROGRESSBAR_TYPE_NORMAL && duration > 0) {
-            double elapsed = now() - gProgressScopeTime;
-            float progress = 1.0 * elapsed / duration;
-            if (progress > 1.0) progress = 1.0;
-            if (progress > gProgress) {
-                gProgress = progress;
-                redraw = 1;
-            }
-        }
-
-        if (redraw) update_progress_locked();
-
-        pthread_mutex_unlock(&gUpdateMutex);
-        double end = now();
-        // minimum of 20ms delay between frames
-        double delay = interval - (end-start);
-        if (delay < 0.02) delay = 0.02;
-        usleep((long)(delay * 1000000));
-    }
-    return NULL;
+	for (i = 0; i < UI_BLOCK[type].rows; i++)
+		UI_BLOCK[type].clr_table[i] = clr;
 }
 
-void ui_init(void)
+static void update_block(int type, int visible)
 {
-    gr_init();
-
-    text_col = text_row = 0;
-    text_rows = gr_fb_height() / CHAR_HEIGHT;
-    if (text_rows > MAX_ROWS) text_rows = MAX_ROWS;
-    text_top = 1;
-
-    text_cols = gr_fb_width() / CHAR_WIDTH;
-    if (text_cols > MAX_COLS - 1) text_cols = MAX_COLS - 1;
-
-    int i;
-    for (i = 0; BITMAPS[i].name != NULL; ++i) {
-        int result = res_create_surface(BITMAPS[i].name, BITMAPS[i].surface);
-        if (result < 0) {
-            pr_error("Missing bitmap %s\n(Code %d)\n", BITMAPS[i].name, result);
-        }
-    }
-
-    gProgressBarIndeterminate = malloc(ui_parameters.indeterminate_frames *
-                                       sizeof(gr_surface));
-    for (i = 0; i < ui_parameters.indeterminate_frames; ++i) {
-        char filename[40];
-        // "indeterminate01.png", "indeterminate02.png", ...
-        sprintf(filename, "indeterminate%02d", i+1);
-        int result = res_create_surface(filename, gProgressBarIndeterminate+i);
-        if (result < 0) {
-            pr_error("Missing bitmap %s\n(Code %d)\n", filename, result);
-        }
-    }
-
-    if (ui_parameters.installing_frames > 0) {
-        gInstallationOverlay = malloc(ui_parameters.installing_frames *
-                                      sizeof(gr_surface));
-        for (i = 0; i < ui_parameters.installing_frames; ++i) {
-            char filename[40];
-            // "icon_installing_overlay01.png",
-            // "icon_installing_overlay02.png", ...
-            sprintf(filename, "icon_installing_overlay%02d", i+1);
-            int result = res_create_surface(filename, gInstallationOverlay+i);
-            if (result < 0) {
-                pr_error("Missing bitmap %s\n(Code %d)\n", filename, result);
-            }
-        }
-
-        // Adjust the offset to account for the positioning of the
-        // base image on the screen.
-        if (gBackgroundIcon[BACKGROUND_ICON_INSTALLING] != NULL) {
-            gr_surface bg = gBackgroundIcon[BACKGROUND_ICON_INSTALLING];
-            ui_parameters.install_overlay_offset_x +=
-                (gr_fb_width() - gr_get_width(bg)) / 2;
-            ui_parameters.install_overlay_offset_y +=
-                (gr_fb_height() - gr_get_height(bg)) / 2;
-        }
-    } else {
-        gInstallationOverlay = NULL;
-    }
-
-    pthread_t t;
-    pthread_create(&t, NULL, progress_thread, NULL);
+	UI_BLOCK[type].show = visible;
+	pthread_mutex_lock(&gUpdateMutex);
+	update_screen_locked();
+	pthread_mutex_unlock(&gUpdateMutex);
 }
 
 void ui_set_background(int icon)
 {
-    pthread_mutex_lock(&gUpdateMutex);
-    gCurrentIcon = icon;
-    update_screen_locked();
-    pthread_mutex_unlock(&gUpdateMutex);
+	pthread_mutex_lock(&gUpdateMutex);
+	gCurrentIcon = gBackgroundIcon[icon];
+	update_screen_locked();
+	pthread_mutex_unlock(&gUpdateMutex);
 }
 
-void ui_show_indeterminate_progress()
+void ui_start_process_bar()
 {
-    pthread_mutex_lock(&gUpdateMutex);
-    if (gProgressBarType != PROGRESSBAR_TYPE_INDETERMINATE) {
-        gProgressBarType = PROGRESSBAR_TYPE_INDETERMINATE;
-        update_progress_locked();
-    }
-    pthread_mutex_unlock(&gUpdateMutex);
+	process_update = 1;
+	ui_start_timer(gProgressTimer, 500);
 }
 
-void ui_show_progress(float portion, int seconds)
+void ui_show_process(int show)
 {
-    pthread_mutex_lock(&gUpdateMutex);
-    gProgressBarType = PROGRESSBAR_TYPE_NORMAL;
-    gProgressScopeStart += gProgressScopeSize;
-    gProgressScopeSize = portion;
-    gProgressScopeTime = now();
-    gProgressScopeDuration = seconds;
-    gProgress = 0;
-    update_progress_locked();
-    pthread_mutex_unlock(&gUpdateMutex);
+	show_process = show;
 }
 
-void ui_set_progress(float fraction)
+void ui_stop_process_bar()
 {
-    pthread_mutex_lock(&gUpdateMutex);
-    if (fraction < 0.0) fraction = 0.0;
-    if (fraction > 1.0) fraction = 1.0;
-    if (gProgressBarType == PROGRESSBAR_TYPE_NORMAL && fraction > gProgress) {
-        // Skip updates that aren't visibly different.
-        int width = gr_get_width(gProgressBarIndeterminate[0]);
-        float scale = width * gProgressScopeSize;
-        if ((int) (gProgress * scale) != (int) (fraction * scale)) {
-            gProgress = fraction;
-            update_progress_locked();
-        }
-    }
-    pthread_mutex_unlock(&gUpdateMutex);
+	process_update = 0;
 }
 
-void ui_reset_progress()
+void ui_block_init(int type, char **titles, struct color **clrs)
 {
-    pthread_mutex_lock(&gUpdateMutex);
-    gProgressBarType = PROGRESSBAR_TYPE_NONE;
-    gProgressScopeStart = gProgressScopeSize = 0;
-    gProgressScopeTime = gProgressScopeDuration = 0;
-    gProgress = 0;
-    update_screen_locked();
-    pthread_mutex_unlock(&gUpdateMutex);
+	int i;
+
+	for (i = 0; i < UI_BLOCK[type].rows; i++) {
+		if (clrs[i] == NULL) break;
+		UI_BLOCK[type].clr_table[i] = clrs[i];
+	}
+	set_block_text(type, titles);
+}
+
+void ui_block_show(int type)
+{
+	UI_BLOCK[type].show = VISIBLE;
+}
+
+void ui_block_hide(int type)
+{
+	UI_BLOCK[type].show = HIDDEN;
+}
+
+int ui_block_visible(int type)
+{
+	return UI_BLOCK[type].show;
 }
 
 void ui_print(const char *fmt, ...)
 {
-    char buf[256];
-    va_list ap;
-    va_start(ap, fmt);
-    vsnprintf(buf, 256, fmt, ap);
-    va_end(ap);
+	char buf[256];
+	va_list ap;
+	va_start(ap, fmt);
+	vsnprintf(buf, 256, fmt, ap);
+	va_end(ap);
 
-    fputs(buf, stdout);
-    if (buf[strlen(buf) - 1] != '\n')
-        fputs("\n", stdout);
-    else
-        buf[strlen(buf) - 1] = '\0';
-
-    // This can get called before ui_init(), so be careful.
-    pthread_mutex_lock(&gTextMutex);
-    if (text_rows > 0 && text_cols > 0) {
-        char *ptr;
-        if (text_col != 0) {
-            text_col = 0;
-            text_row = (text_row + 1) % text_rows;
-            if (text_row == text_top) text_top = (text_top + 1) % text_rows;
-        }
-        for (ptr = buf; *ptr != '\0'; ++ptr) {
-            if (*ptr == '\n' || text_col >= text_cols) {
-                text[text_row][text_col] = '\0';
-                text_col = 0;
-                text_row = (text_row + 1) % text_rows;
-                if (text_row == text_top) text_top = (text_top + 1) % text_rows;
-            }
-            if (*ptr != '\n') text[text_row][text_col++] = *ptr;
-        }
-        text[text_row][text_col] = '\0';
-    }
-    pthread_mutex_unlock(&gTextMutex);
-    if (show_text) {
-        pthread_mutex_lock(&gUpdateMutex);
-        update_screen_locked();
-        pthread_mutex_unlock(&gUpdateMutex);
-    }
-
+	fputs(buf, stdout);
+	pthread_mutex_lock(&gUpdateMutex);
+	char *ptr = buf;
+	for (; *ptr != '\0'; ++ptr) {
+		if (*ptr == '\r') {
+			log[log_row][log_col] = '\0';
+			log_col = 0;
+		}
+		if (*ptr == '\n' || log_col >= MAX_COLS) {
+			log[log_row][log_col] = '\0';
+			log_col = 0;
+			log_row = (log_row + 1) % LOG_MAX;
+			if (log_row == log_top) log_top = (log_top + 1) % LOG_MAX;
+		}
+		if ((*ptr != '\n') && (*ptr != '\r')) {
+			log[log_row][log_col] = *ptr;
+			log_col++;
+		}
+	}
+	log[log_row][log_col] = '\0';
+	update_screen_locked();
+	pthread_mutex_unlock(&gUpdateMutex);
 }
 
-void ui_show_text(int visible)
+void ui_msg(int type, const char *fmt, ...)
 {
-    pthread_mutex_lock(&gUpdateMutex);
-    show_text = visible;
-    update_screen_locked();
-    pthread_mutex_unlock(&gUpdateMutex);
+	char buf[256];
+	va_list ap;
+	va_start(ap, fmt);
+	vsnprintf(buf, 256, fmt, ap);
+	va_end(ap);
+
+	switch (type) {
+	  case ALERT:
+		msg_clr[0] = &red;
+		break;
+	  default:
+		msg_clr[0] = msg_dclr;
+		break;
+	}
+	strncpy(msg[0], buf, MAX_COLS);
+	msg[0][MAX_COLS-1] = '\0';
+	pthread_mutex_lock(&gUpdateMutex);
+	update_screen_locked();
+	pthread_mutex_unlock(&gUpdateMutex);
+}
+
+void ui_start_menu(char** items, int initial_selection)
+{
+	int k=0;
+
+	while (k < MENU_MAX && items[k] != NULL) ++k;
+	menu_items = k;
+	menu_sel = initial_selection;
+	set_block_text(MENU, items);
+	set_block_clr(MENU, menu_dclr);
+	menu_clr[menu_sel] = menu_sclr;
+	if (show_text)
+		update_block(MENU, VISIBLE);
+}
+
+int ui_menu_select(int sel)
+{
+	int old_sel;
+
+	if (UI_BLOCK[MENU].show == VISIBLE) {
+		old_sel = menu_sel;
+		menu_sel = sel;
+		if (menu_sel < 0) menu_sel = 0;
+		if (menu_sel >= menu_items) menu_sel = menu_items-1;
+		sel = menu_sel;
+		if (menu_sel != old_sel){
+			set_block_clr(MENU, menu_dclr);
+			menu_clr[menu_sel] = menu_sclr;
+			update_block(MENU, VISIBLE);
+		}
+	}
+	return sel;
+}
+
+int ui_wait_key()
+{
+	pthread_mutex_lock(&key_queue_mutex);
+	while (key_queue_len == 0) {
+		pthread_cond_wait(&key_queue_cond, &key_queue_mutex);
+	}
+
+	int key = key_queue[0];
+	memcpy(&key_queue[0], &key_queue[1], sizeof(int) * --key_queue_len);
+	pthread_mutex_unlock(&key_queue_mutex);
+	return key;
+}
+
+int ui_key_pressed(int key)
+{
+	// This is a volatile static array, don't bother locking
+	return key_pressed[key];
+}
+
+void ui_clear_key_queue()
+{
+	pthread_mutex_lock(&key_queue_mutex);
+	key_queue_len = 0;
+	pthread_mutex_unlock(&key_queue_mutex);
+}
+
+extern int device_toggle_display(volatile char* key_pressed, int key_code);
+static int input_callback(int fd, short revents, void *data)
+{
+	struct input_event ev;
+	int ret;
+
+	ret = ev_get_input(fd, revents, &ev);
+	if (ret)
+		return -1;
+
+	if (ev.type == EV_SYN || ev.type != EV_KEY || ev.code > KEY_MAX)
+		return 0;
+	key_pressed[ev.code] = ev.value;
+
+	pthread_mutex_lock(&key_queue_mutex);
+	const int queue_max = sizeof(key_queue) / sizeof(key_queue[0]);
+	if (ev.value > 0 && key_queue_len < queue_max) {
+		key_queue[key_queue_len++] = ev.code;
+		pthread_cond_signal(&key_queue_cond);
+	}
+	pthread_mutex_unlock(&key_queue_mutex);
+
+	if (ev.value > 0 && device_toggle_display(key_pressed, ev.code)) {
+		pthread_mutex_lock(&gUpdateMutex);
+		show_text = !show_text;
+		if (show_text) {
+			ui_block_show(TITLE);
+			ui_block_show(INFO);
+			ui_block_show(MENU);
+			ui_block_show(LOG);
+		} else {
+			ui_block_hide(TITLE);
+			ui_block_hide(INFO);
+			ui_block_hide(MENU);
+			ui_block_hide(LOG);
+		}
+		update_screen_locked();
+		pthread_mutex_unlock(&gUpdateMutex);
+	}
+
+	return 0;
+}
+
+// Reads input events, handles special hot keys, and adds to the key queue.
+static void *input_thread(void *cookie)
+{
+    for (;;) {
+        if (!ev_wait(ui_get_next_timer_ms()))
+            ev_dispatch();
+    }
+    return NULL;
+}
+
+void ui_event_init(void)
+{
+	pthread_t t;
+
+	ev_init(input_callback, NULL);
+	pthread_create(&t, NULL, input_thread, NULL);
+}
+
+void ui_init(void)
+{
+	gr_init();
+
+	set_block_clr(TITLE, title_dclr);
+	set_block_clr(INFO, info_dclr);
+	set_block_clr(MENU, menu_dclr);
+	set_block_clr(LOG, log_dclr);
+	set_block_clr(MSG, msg_dclr);
+
+	fb_width = gr_fb_width();
+	fb_height = gr_fb_height();
+	printf("fb_width = %d, fb_height= %d\n", fb_width, fb_height);
+	log_row = log_col = 0;
+	log_top = 1;
+
+	acquire_wake_lock(1, "fastboot");
+	gScreenSaverTimer = ui_alloc_timer(screen_saver_timer_cb, 1, NULL);
+	ui_start_timer(gScreenSaverTimer, SCREENSAVER_DELAY);
+	gBrightnessTimer = ui_alloc_timer(set_back_brightness_timer, 1, NULL);
+	gProgressTimer = ui_alloc_timer(progress_timer_cb, 1, NULL);
+
+	int i;
+	for (i = 0; BITMAPS[i].name != NULL; ++i) {
+		int result = res_create_surface(BITMAPS[i].name, BITMAPS[i].surface);
+		if (result < 0) {
+			if (result == -2) {
+				printf("Bitmap %s missing header\n", BITMAPS[i].name);
+			} else {
+				printf("Missing bitmap %s\n(Code %d)\n", BITMAPS[i].name, result);
+			}
+			*BITMAPS[i].surface = NULL;
+		}
+	}
+	pthread_t t;
+	pthread_create(&t, NULL, screen_state_thread, NULL);
 }
 

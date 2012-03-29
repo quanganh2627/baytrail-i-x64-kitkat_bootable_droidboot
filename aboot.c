@@ -174,7 +174,7 @@ static int cmd_flash_update(void *data, unsigned sz)
 	return 0;
 
 err:
-	ui_print("OTA_UPDATE FAILED!\n");
+	ui_msg(ALERT, "OTA_UPDATE FAILED!\n");
 	fastboot_fail("problem with creating ota update file!");
 	return -1;
 }
@@ -213,10 +213,10 @@ static void cmd_flash(const char *part_name, void *data, unsigned sz)
 
 out:
 	if (ret == 0) {
-		ui_print("FLASH COMPLETE!");
+		ui_print("FLASH COMPLETE!\n");
 		fastboot_okay("");
 	} else {
-		ui_print("FLASH FAILED!");
+		ui_print("FLASH FAILED!\n");
 		fastboot_fail("flash_cmds error!\n");
 	}
 	return;
@@ -254,17 +254,19 @@ static void cmd_oem(const char *arg, void *data, unsigned sz)
 	if ( (cb = hashmapGet(oem_cmds, argv[0])) ) {
 		int ret;
 
+		ui_print("CMD '%s'...\n", argv[0]);
 		ret = cb(argc, argv);
 		if (ret) {
 			pr_error("oem %s command failed, retval = %d\n",
 					argv[0], ret);
 			fastboot_fail(argv[0]);
-		} else
+		} else {
+			ui_print("CMD '%s' COMPLETE.\n", argv[0]);
 			fastboot_okay("");
+		}
 	} else if (strcmp(argv[0], CMD_SYSTEM) == 0) {
                 fastboot_fail("OEM system command are not supported anymore");
 	} else if (strcmp(argv[0], CMD_SHOWTEXT) == 0) {
-		ui_show_text(1);
 		fastboot_okay("");
 	} else {
 		fastboot_fail("unknown OEM command");
@@ -284,6 +286,7 @@ static void cmd_reboot(const char *arg, void *data, unsigned sz)
 {
 	fastboot_okay("");
 	sync();
+	ui_print("REBOOT...\n");
 	pr_info("Rebooting!\n");
 	android_reboot(ANDROID_RB_RESTART2, 0, "android");
 	pr_error("Reboot failed");
@@ -293,6 +296,7 @@ static void cmd_reboot_bl(const char *arg, void *data, unsigned sz)
 {
 	fastboot_okay("");
 	sync();
+	ui_print("REBOOT...\n");
 	pr_info("Restarting Droidboot...\n");
 	android_reboot(ANDROID_RB_RESTART2, 0, "fastboot");
 	pr_error("Reboot failed");
