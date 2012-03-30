@@ -266,7 +266,11 @@ static void draw_progress_locked()
 	int height = gr_get_height(gProgressBarIndeterminate[0]);
 
 	int dx = (fb_width - width)/2;
-	int dy = fb_height - 1.5 * CHAR_HEIGHT;
+	int dy;
+	if (fb_height < 1024)
+		dy = (UI_BLOCK[MSG].top - 1) * SMALL_SCREEN_CHAR_HEIGHT;
+	else
+		dy = fb_height - 1.5 * CHAR_HEIGHT;
 
 	// Erase behind the progress bar (in case this was a progress-only update)
 	gr_color(0, 0, 0, 255);
@@ -314,9 +318,12 @@ static void draw_background_locked(gr_surface icon)
 }
 
 static void draw_text_line(int row, const char* t) {
-  if (t[0] != '\0') {
-	gr_text(0, (row+1)*CHAR_HEIGHT-1, t);
-  }
+	if (t[0] != '\0') {
+		if (fb_height < 1024)
+			gr_text(0, (row+1)*SMALL_SCREEN_CHAR_HEIGHT-1, t);
+		else
+			gr_text(0, (row+1)*CHAR_HEIGHT-1, t);
+	}
 }
 // Redraw everything on the screen.  Does not flip pages.
 // Should only be called with gUpdateMutex locked.
@@ -445,8 +452,8 @@ void ui_print(const char *fmt, ...)
 		if (*ptr == '\n' || log_col >= MAX_COLS) {
 			log[log_row][log_col] = '\0';
 			log_col = 0;
-			log_row = (log_row + 1) % LOG_MAX;
-			if (log_row == log_top) log_top = (log_top + 1) % LOG_MAX;
+			log_row = (log_row + 1) % UI_BLOCK[LOG].rows;
+			if (log_row == log_top) log_top = (log_top + 1) % UI_BLOCK[LOG].rows;
 		}
 		if ((*ptr != '\n') && (*ptr != '\r')) {
 			log[log_row][log_col] = *ptr;
@@ -601,9 +608,27 @@ void ui_event_init(void)
 	pthread_create(&t, NULL, input_thread, NULL);
 }
 
+static void ui_init_block_attr(void)
+{
+	int max_rows;
+
+	if (fb_height < 1024) {
+		max_rows = fb_height	/ SMALL_SCREEN_CHAR_HEIGHT;
+		UI_BLOCK[LOG].rows = 6;
+	} else
+		max_rows = fb_height / CHAR_HEIGHT;
+	UI_BLOCK[MSG].top = max_rows - MSG_MAX;
+	UI_BLOCK[LOG].top = UI_BLOCK[MSG].top - UI_BLOCK[LOG].rows;
+}
+
 void ui_init(void)
 {
 	gr_init();
+
+	fb_width = gr_fb_width();
+	fb_height = gr_fb_height();
+	printf("fb_width = %d, fb_height= %d\n", fb_width, fb_height);
+	ui_init_block_attr();
 
 	set_block_clr(TITLE, title_dclr);
 	set_block_clr(INFO, info_dclr);
@@ -611,9 +636,6 @@ void ui_init(void)
 	set_block_clr(LOG, log_dclr);
 	set_block_clr(MSG, msg_dclr);
 
-	fb_width = gr_fb_width();
-	fb_height = gr_fb_height();
-	printf("fb_width = %d, fb_height= %d\n", fb_width, fb_height);
 	log_row = log_col = 0;
 	log_top = 1;
 

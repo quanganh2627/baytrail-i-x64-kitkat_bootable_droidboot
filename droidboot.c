@@ -317,7 +317,7 @@ int main(int argc, char **argv)
 
 	//Init title table
 	if (table_init(&title, MAX_COLS, TITLE_MAX) == 0) {
-		snprintf(title[0], MAX_COLS, "                  DROIDBOOT PROVISION OS");
+		snprintf(title[0], MAX_COLS, "DROIDBOOT PROVISION OS");
 		ui_block_init(TITLE, (char**)title, title_clr);
 	} else {
 		pr_error("Init title table error!\n");

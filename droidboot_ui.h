@@ -92,6 +92,7 @@ enum {
 #define LOG_MAX			10
 #define CHAR_WIDTH		10
 #define CHAR_HEIGHT		30
+#define SMALL_SCREEN_CHAR_HEIGHT	18
 
 #define UI_GET_SYSTEM_INFO		"get_system_info"
 
