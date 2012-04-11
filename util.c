@@ -98,6 +98,7 @@ int named_file_write(const char *filename, const unsigned char *what,
 	return 0;
 }
 
+#ifdef DROIDBOOT_SHELL_UTILS
 int execute_command(const char *fmt, ...)
 {
 	int ret = -1;
@@ -166,6 +167,8 @@ int execute_command_data(void *data, unsigned sz, const char *fmt, ...)
 
 	return ret;
 }
+
+#endif
 
 int is_valid_blkdev(const char *node)
 {
