@@ -251,18 +251,7 @@ static void cmd_oem(const char *arg, void *data, unsigned sz)
 		} else
 			fastboot_okay("");
 	} else if (strcmp(argv[0], CMD_SYSTEM) == 0) {
-		int retval;
-		arg += strlen(CMD_SYSTEM);
-		while (*arg == ' ')
-			arg++;
-		retval = execute_command("%s", arg);
-		if (retval != 0) {
-			pr_error("\nfails: %s (return value %d)\n", arg, retval);
-			fastboot_fail("OEM system command failed");
-		} else {
-			pr_verbose("\nsucceeds: %s\n", arg);
-			fastboot_okay("");
-		}
+                fastboot_fail("OEM system command are not supported anymore");
 	} else if (strcmp(argv[0], CMD_SHOWTEXT) == 0) {
 		ui_show_text(1);
 		fastboot_okay("");
