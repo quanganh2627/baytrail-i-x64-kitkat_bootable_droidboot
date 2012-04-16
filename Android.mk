@@ -16,7 +16,7 @@ LOCAL_CFLAGS := -DDEVICE_NAME=\"$(TARGET_BOOTLOADER_BOARD_NAME)\" \
 LOCAL_MODULE := droidboot
 LOCAL_MODULE_TAGS := eng
 LOCAL_SHARED_LIBRARIES := liblog libext4_utils libz
-LOCAL_STATIC_LIBRARIES += libcharger libminui libmtdutils libpng libpixelflinger_static libc libcutils libvolumeutils libmtdutils libpower
+LOCAL_STATIC_LIBRARIES += libcharger libminui libmtdutils libpng libpixelflinger_static libc libcutils libvolumeutils libmtdutils libpower libminzip
 LOCAL_STATIC_LIBRARIES += $(TARGET_DROIDBOOT_LIBS) $(TARGET_DROIDBOOT_EXTRA_LIBS)
 LOCAL_C_INCLUDES += bootable/recovery system/extras/ext4_utils bionic/libc/private
 
