@@ -179,6 +179,18 @@ err:
 	return -1;
 }
 
+static int cmd_flash_system(void *data, unsigned sz)
+{
+	Volume *v;
+
+	if ((v = volume_for_path("/system")) == NULL) {
+		pr_error("Cannot find system volume!\n");
+		return -1;
+	}
+
+	return named_file_write_decompress_gzip(v->device, data, sz);
+}
+
 static void cmd_flash(const char *part_name, void *data, unsigned sz)
 {
 	char path[FILE_NAME_SIZ];
@@ -331,5 +343,6 @@ void aboot_register_commands(void)
 #endif
 
 	aboot_register_flash_cmd("update", cmd_flash_update);
+	aboot_register_flash_cmd("system", cmd_flash_system);
 
 }
