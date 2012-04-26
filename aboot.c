@@ -34,7 +34,6 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <fcntl.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/mount.h>
@@ -46,7 +45,6 @@
 #include <unistd.h>
 #include <cutils/android_reboot.h>
 #include <cutils/hashmap.h>
-#include <minzip/Zip.h>
 
 #include "fastboot.h"
 #include "droidboot.h"
@@ -179,63 +177,6 @@ err:
 	ui_msg(ALERT, "OTA_UPDATE FAILED!\n");
 	fastboot_fail("problem with creating ota update file!");
 	return -1;
-}
-
-#define SYSTEM_IMG_FILE	"/cache/system.img.zip"
-static int cmd_flash_system(void *data, unsigned sz)
-{
-	int fd, ret = -1;
-	Volume *v;
-	ZipArchive za;
-	const ZipEntry *entry;
-
-	if (ensure_path_mounted(SYSTEM_IMG_FILE) != 0) {
-		pr_error("Unable to mount update file storage filesystem!\n");
-		return ret;
-	}
-
-	if (named_file_write(SYSTEM_IMG_FILE, data, sz) < 0) {
-		pr_error("Unable to write file: " SYSTEM_IMG_FILE "\n");
-		goto unmount_system_img;
-	}
-
-	if ((v = volume_for_path("/system")) == NULL) {
-		pr_error("Cannot find system volume!\n");
-		goto unlink_system_img;
-	}
-
-	if ((fd = open(v->device, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR)) < 0) {
-		pr_error("Cannot open system block devices!\n");
-		goto unlink_system_img;
-	}
-
-	if (mzOpenZipArchive(SYSTEM_IMG_FILE, &za) < 0) {
-		pr_error("mzOpenZipArchive %s error!\n", SYSTEM_IMG_FILE);
-		goto close_fd;
-	}
-
-	if ((entry = mzFindZipEntry(&za, "system.img")) == NULL) {
-		pr_error("mzFindZipEntry system.img error!\n");
-		goto close_ziparchive;
-	}
-
-	if (mzExtractZipEntryToFile(&za, entry, fd) < 0) {
-		pr_error("mzExtractZipEntryToFile error!\n");
-		goto close_ziparchive;
-	}
-
-	sync();
-	ret = 0;
-
-close_ziparchive:
-	mzCloseZipArchive(&za);
-close_fd:
-	close(fd);
-unlink_system_img:
-	unlink(SYSTEM_IMG_FILE);
-unmount_system_img:
-	ensure_path_unmounted(SYSTEM_IMG_FILE);
-	return ret;
 }
 
 static void cmd_flash(const char *part_name, void *data, unsigned sz)
@@ -390,6 +331,5 @@ void aboot_register_commands(void)
 #endif
 
 	aboot_register_flash_cmd("update", cmd_flash_update);
-	aboot_register_flash_cmd("system", cmd_flash_system);
 
 }
