@@ -11,6 +11,12 @@ on init
     mount /tmp /tmp tmpfs
     mount /data /data tmpfs
 
+    # mount logs in /logs
+    mount ext4 /dev/block/mmcblk0p9 /logs nosuid nodev barrier=1,data=ordered
+    chown system system /logs
+    chmod 777 /logs
+
+
 on boot
     ifup lo
     hostname localhost
@@ -73,10 +79,10 @@ service console /system/bin/sh
 service apk_logfs /system/bin/logcat -b system -b events -b main -b radio -n 20 -r 5000 -v threadtime -f /logs/aplog -K
     disabled
 
-on property:service.apk_logfs.enable=1
+on property:persist.service.apklogfs.enable=1
     start apk_logfs
 
-on property:service.apk_logfs.enable=0
+on property:persist.service.apklogfs.enable=0
     stop apk_logfs
 
 # Add Proxy service for Modem provisionning
