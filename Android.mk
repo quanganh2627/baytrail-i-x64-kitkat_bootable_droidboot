@@ -31,7 +31,7 @@ endif
 
 LOCAL_MODULE := droidboot
 LOCAL_MODULE_TAGS := eng
-LOCAL_SHARED_LIBRARIES := liblog libext4_utils libz
+LOCAL_SHARED_LIBRARIES := liblog libext4_utils libz libcutils
 LOCAL_STATIC_LIBRARIES += libmtdutils libpng libpixelflinger_static libc libcutils libmtdutils
 LOCAL_STATIC_LIBRARIES += $(TARGET_DROIDBOOT_LIBS) $(TARGET_DROIDBOOT_EXTRA_LIBS) libminzip
 

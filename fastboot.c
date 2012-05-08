@@ -30,12 +30,15 @@
 #include <string.h>
 #include <stdlib.h>
 #include <sys/types.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <pthread.h>
 #include <cutils/properties.h>
+#include <netinet/in.h>
+#include <poll.h>
 
 #include "volumeutils/roots.h"
 #include "droidboot.h"
@@ -44,6 +47,7 @@
 #include "droidboot_util.h"
 
 #define FILEMODE  S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH
+#define MAGIC_LENGTH 64
 
 struct fastboot_cmd {
 	struct fastboot_cmd *next;
@@ -120,6 +124,7 @@ static int usb_read(void *_buf, unsigned len)
 	unsigned xfer;
 	unsigned char *buf = _buf;
 	int count = 0;
+	unsigned const len_orig = len;
 
 	if (fastboot_state == STATE_ERROR)
 		goto oops;
@@ -131,6 +136,9 @@ static int usb_read(void *_buf, unsigned len)
 		r = read(fb_fp, buf, xfer);
 		if (r < 0) {
 			pr_warning("read");
+			goto oops;
+		} else if (r == 0) {
+			pr_info("Connection closed\n");
 			goto oops;
 		}
 		if (tmp_fp < 0) {
@@ -151,8 +159,12 @@ static int usb_read(void *_buf, unsigned len)
 		count += r;
 		len -= r;
 
-		/* short transfer? */
-		if ((unsigned int)r != xfer)
+		/* Fastboot proto is badly specified. Corner case where it will fail:
+		 * file download is MAGIC_LENGTH. Transport has MTU < MAGIC_LENGTH.
+		 * Will be necessary to retry after short read, but break below will
+		 * prevent it.
+		 */
+		if (len_orig == MAGIC_LENGTH)
 			break;
 	}
 	pr_verbose("usb_read complete\n");
@@ -167,6 +179,7 @@ static int usb_write(void *buf, unsigned len)
 {
 	int r;
 
+	pr_verbose("usb_write %d\n", len);
 	if (fastboot_state == STATE_ERROR)
 		goto oops;
 
@@ -185,7 +198,7 @@ oops:
 
 void fastboot_ack(const char *code, const char *reason)
 {
-	char response[64];
+	char response[MAGIC_LENGTH];
 
 	if (fastboot_state != STATE_COMMAND)
 		return;
@@ -193,7 +206,7 @@ void fastboot_ack(const char *code, const char *reason)
 	if (reason == 0)
 		reason = "";
 
-	snprintf(response, 64, "%s%s", code, reason);
+	snprintf(response, MAGIC_LENGTH, "%s%s", code, reason);
 	fastboot_state = STATE_COMPLETE;
 
 	usb_write(response, strlen(response));
@@ -248,7 +261,7 @@ static void cmd_getvar(const char *arg, void *data, unsigned sz)
 
 static void cmd_download(const char *arg, void *data, unsigned sz)
 {
-	char response[64];
+	char response[MAGIC_LENGTH];
 	unsigned len;
 	int r;
 
@@ -298,8 +311,8 @@ static void fastboot_command_loop(void)
 
 again:
 	while (fastboot_state != STATE_ERROR) {
-		memset(buffer, 0, 64);
-		r = usb_read(buffer, 64);
+		memset(buffer, 0, MAGIC_LENGTH);
+		r = usb_read(buffer, MAGIC_LENGTH);
 		if (r < 0)
 			break;
 		buffer[r] = 0;
@@ -329,21 +342,108 @@ again:
 	pr_warning("fastboot: oops!\n");
 }
 
+static int open_tcp(void)
+{
+	pr_verbose("Beginning TCP init\n");
+	int tcp_fd = -1;
+	int portno = 1234;
+	struct sockaddr_in serv_addr;
+
+	pr_verbose("Allocating socket\n");
+	tcp_fd = socket(AF_INET, SOCK_STREAM, 0);
+	if (tcp_fd < 0) {
+		pr_error("Socket creation failed: %s\n", strerror(errno));
+		return -1;
+	}
+
+	memset(&serv_addr, sizeof(serv_addr), 0);
+	serv_addr.sin_family = AF_INET;
+	serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+	serv_addr.sin_port = htons(portno);
+	pr_verbose("Binding socket\n");
+	if (bind(tcp_fd, (struct sockaddr *) &serv_addr,
+		 sizeof(serv_addr)) < 0) {
+		pr_error("Bind failure: %s\n", strerror(errno));
+		close(tcp_fd);
+		return -1;
+	}
+
+	pr_verbose("Listening socket\n");
+	if (listen(tcp_fd,5)) {
+		pr_error("Listen failure: %s\n", strerror(errno));
+		close(tcp_fd);
+		return -1;
+	}
+
+	pr_info("Listening on TCP port %d\n", portno);
+	return tcp_fd;
+}
+
+static int open_usb(void)
+{
+	int usb_fp;
+	static int printed = 0;
+
+	usb_fp = open("/dev/android_adb", O_RDWR);
+
+	if (!printed) {
+		if (usb_fp < 1)
+			pr_info("Can't open ADB device node (%s),"
+				" Listening on TCP only.\n",
+				strerror(errno));
+		else
+			pr_info("Listening on /dev/android_adb\n");
+		printed = 1;
+	}
+
+	return usb_fp;
+}
 
 static int fastboot_handler(void *arg)
 {
+	int usb_fd_idx = 0;
+	int tcp_fd_idx = 1;
+	int const nfds = 2;
+	struct pollfd fds[nfds];
+
+	memset(&fds, sizeof fds, 0);
+
+	fds[usb_fd_idx].fd = -1;
+	fds[tcp_fd_idx].fd = -1;
+
 	for (;;) {
-		fb_fp = open("/dev/android_adb", O_RDWR);
-		if (fb_fp < 1) {
-			pr_error("Can't open ADB device node (%s),"
-					" trying again\n",
-					strerror(errno));
-			sleep(1);
-			continue;
+		if (fds[usb_fd_idx].fd == -1)
+			fds[usb_fd_idx].fd = open_usb();
+		if (fds[tcp_fd_idx].fd == -1)
+			fds[tcp_fd_idx].fd = open_tcp();
+
+		if (fds[usb_fd_idx].fd >= 0)
+			fds[usb_fd_idx].events |= POLLIN;
+		if (fds[tcp_fd_idx].fd >= 0)
+			fds[tcp_fd_idx].events |= POLLIN;
+
+		while (poll(fds, nfds, -1) == -1) {
+			if (errno == EINTR)
+				continue;
+			pr_error("Poll failed: %s\n", strerror(errno));
+			return -1;
 		}
-		ui_print("FASTBOOT ONLINE.\n");
-		fastboot_command_loop();
-		close(fb_fp);
+
+		if (fds[usb_fd_idx].revents & POLLIN) {
+			fb_fp = fds[usb_fd_idx].fd;
+			fastboot_command_loop();
+			close(fb_fp);
+			fds[usb_fd_idx].fd = -1;
+		}
+
+		if (fds[tcp_fd_idx].revents & POLLIN) {
+			fb_fp = accept(fds[tcp_fd_idx].fd, NULL, NULL);
+			if (fb_fp < 0)
+				pr_error("Accept failure: %s\n", strerror(errno));
+			else
+				fastboot_command_loop();
+			close(fb_fp);
+		}
 		fb_fp = -1;
 	}
 	return 0;
