@@ -47,6 +47,6 @@ const char *fastboot_getvar(const char *name);
 /* only callable from within a command handler */
 void fastboot_okay(const char *result);
 void fastboot_fail(const char *reason);
-
+void fastboot_info(const char *info);
 
 #endif

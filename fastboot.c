@@ -198,6 +198,17 @@ void fastboot_ack(const char *code, const char *reason)
 
 }
 
+void fastboot_info(const char *info)
+{
+	char response[65];
+
+	if (fastboot_state != STATE_COMMAND)
+		return;
+
+	snprintf(response, sizeof(response), "%s%s", "INFO", info);
+	usb_write(response, strlen(response));
+}
+
 #define TEMP_BUFFER_SIZE		512
 #define RESULT_FAIL_STRING		"RESULT: FAIL("
 void fastboot_fail(const char *reason)
