@@ -362,6 +362,7 @@ int fastboot_init(unsigned size)
 	fastboot_register("download:", cmd_download);
 	fastboot_publish("version", "0.5");
 
+	/* We setup functional settings on USB to declare Fastboot Device */
 	property_set("sys.usb.config", "adb");
 	fastboot_handler(NULL);
 
