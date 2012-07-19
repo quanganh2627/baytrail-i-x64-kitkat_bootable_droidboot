@@ -6,9 +6,6 @@
 #include <stdint.h>
 #include <pthread.h>
 
-#include <volumeutils/roots.h>
-#include <volumeutils/mounts.h>
-
 #define MEGABYTE	(1024 * 1024)
 
 #define DROIDBOOT_VERSION       "2.0"

@@ -63,7 +63,7 @@ int named_file_write_decompress_gzip(const char *filename,
 	int data_in_mem, ret;
 	unsigned int have;
 	z_stream strm;
-	FILE *src, *dest;
+	FILE *src = NULL, *dest = NULL;
 	unsigned char in[CHUNK], out[CHUNK];
 
 	dest = fopen(filename, "w");

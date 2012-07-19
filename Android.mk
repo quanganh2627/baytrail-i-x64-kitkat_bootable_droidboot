@@ -4,12 +4,14 @@ include $(CLEAR_VARS)
 ifeq ($(TARGET_USE_DROIDBOOT),true)
 
 LOCAL_SRC_FILES := \
+	volumeutils/roots.c \
+	volumeutils/ufdisk.c \
 	aboot.c \
 	fastboot.c \
 	util.c \
 	droidboot.c
 
-LOCAL_C_INCLUDES += bootable/recovery \
+LOCAL_C_INCLUDES += bootable/recovery/mtdutils \
 		system/extras/ext4_utils \
 		bionic/libc/private \
 		external/zlib \
@@ -30,7 +32,7 @@ endif
 LOCAL_MODULE := droidboot
 LOCAL_MODULE_TAGS := eng
 LOCAL_SHARED_LIBRARIES := liblog libext4_utils libz
-LOCAL_STATIC_LIBRARIES += libmtdutils libpng libpixelflinger_static libc libcutils libvolumeutils libmtdutils
+LOCAL_STATIC_LIBRARIES += libmtdutils libpng libpixelflinger_static libc libcutils libmtdutils
 LOCAL_STATIC_LIBRARIES += $(TARGET_DROIDBOOT_LIBS) $(TARGET_DROIDBOOT_EXTRA_LIBS)
 
 #libpixelflinger_static for x86 is using encoder under hardware/intel/apache-harmony

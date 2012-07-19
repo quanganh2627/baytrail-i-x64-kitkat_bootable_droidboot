@@ -46,6 +46,7 @@
 #include <cutils/android_reboot.h>
 #include <cutils/hashmap.h>
 
+#include "volumeutils/roots.h"
 #include "fastboot.h"
 #include "droidboot.h"
 #include "droidboot_util.h"
