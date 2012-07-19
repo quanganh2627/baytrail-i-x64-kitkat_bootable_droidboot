@@ -30,7 +30,7 @@ endif
 LOCAL_MODULE := droidboot
 LOCAL_MODULE_TAGS := eng
 LOCAL_SHARED_LIBRARIES := liblog libext4_utils libz
-LOCAL_STATIC_LIBRARIES += libcharger libmtdutils libpng libpixelflinger_static libc libcutils libvolumeutils libmtdutils libpower
+LOCAL_STATIC_LIBRARIES += libmtdutils libpng libpixelflinger_static libc libcutils libvolumeutils libmtdutils
 LOCAL_STATIC_LIBRARIES += $(TARGET_DROIDBOOT_LIBS) $(TARGET_DROIDBOOT_EXTRA_LIBS)
 
 #libpixelflinger_static for x86 is using encoder under hardware/intel/apache-harmony
@@ -78,7 +78,9 @@ LOCAL_SRC_FILES += ui.c \
 		minui/events.c \
 		minui/graphics.c \
 		minui/resources.c \
-		minui/timer.c
+		minui/timer.c \
+		charger/charger.c \
+		charger/power.c
 LOCAL_CFLAGS += -DUSE_GUI
 endif
 
