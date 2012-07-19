@@ -141,7 +141,6 @@ static int gCurBrightness = TARGET_BRIGHTNESS;
 static char gBrightnessPath[255];
 static int gScreenState = 1;
 static int gTargetScreenState = 1;
-static int show_text = 0;
 
 /**** screen state, and screen saver   *****/
 
@@ -498,8 +497,7 @@ void ui_start_menu(char** items, int initial_selection)
 	set_block_text(MENU, items);
 	set_block_clr(MENU, menu_dclr);
 	menu_clr[menu_sel] = menu_sclr;
-	if (show_text)
-		update_block(MENU, VISIBLE);
+	update_block(MENU, VISIBLE);
 }
 
 int ui_menu_select(int sel)
@@ -547,7 +545,7 @@ void ui_clear_key_queue()
 	pthread_mutex_unlock(&key_queue_mutex);
 }
 
-extern int device_toggle_display(volatile char* key_pressed, int key_code);
+extern int fastboot_in_process;
 static int input_callback(int fd, short revents, void *data)
 {
 	struct input_event ev;
@@ -557,7 +555,7 @@ static int input_callback(int fd, short revents, void *data)
 	if (ret)
 		return -1;
 
-	if (ev.type == EV_SYN || ev.type != EV_KEY || ev.code > KEY_MAX)
+	if (ev.type == EV_SYN || ev.type != EV_KEY || ev.code > KEY_MAX || fastboot_in_process)
 		return 0;
 	key_pressed[ev.code] = ev.value;
 
@@ -568,24 +566,6 @@ static int input_callback(int fd, short revents, void *data)
 		pthread_cond_signal(&key_queue_cond);
 	}
 	pthread_mutex_unlock(&key_queue_mutex);
-
-	if (ev.value > 0 && device_toggle_display(key_pressed, ev.code)) {
-		pthread_mutex_lock(&gUpdateMutex);
-		show_text = !show_text;
-		if (show_text) {
-			ui_block_show(TITLE);
-			ui_block_show(INFO);
-			ui_block_show(MENU);
-			ui_block_show(LOG);
-		} else {
-			ui_block_hide(TITLE);
-			ui_block_hide(INFO);
-			ui_block_hide(MENU);
-			ui_block_hide(LOG);
-		}
-		update_screen_locked();
-		pthread_mutex_unlock(&gUpdateMutex);
-	}
 
 	return 0;
 }

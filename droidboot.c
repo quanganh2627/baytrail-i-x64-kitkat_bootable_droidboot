@@ -185,7 +185,24 @@ static int get_info()
 	return 0;
 }
 
-extern int device_handle_key(int key_code, int visible);
+static int device_handle_key(int key_code, int visible)
+{
+	if (visible) {
+		switch (key_code) {
+			case KEY_VOLUMEDOWN:
+				return HIGHLIGHT_DOWN;
+
+			case KEY_VOLUMEUP:
+				return HIGHLIGHT_UP;
+
+			case KEY_POWER:
+			case KEY_CAMERA:
+				return SELECT_ITEM;
+		}
+	}
+	return NO_ACTION;
+}
+
 static int get_menu_selection(char** items, int initial_selection) {
 	ui_clear_key_queue();
 	ui_start_menu(items, initial_selection);
@@ -349,6 +366,9 @@ int main(int argc, char **argv)
 		property_set("service.apk_logfs.enable", "1");
 
 #ifdef USE_GUI
+	ui_block_show(TITLE);
+	ui_block_show(INFO);
+	ui_block_show(LOG);
 	pthread_t t;
 	pthread_create(&t, NULL, fastboot_thread, NULL);
 

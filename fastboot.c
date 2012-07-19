@@ -286,6 +286,7 @@ static void cmd_download(const char *arg, void *data, unsigned sz)
 	fastboot_okay("");
 }
 
+int fastboot_in_process = 0;
 static void fastboot_command_loop(void)
 {
 	struct fastboot_cmd *cmd;
@@ -306,11 +307,13 @@ again:
 			if (memcmp(buffer, cmd->prefix, cmd->prefix_len))
 				continue;
 			fastboot_state = STATE_COMMAND;
+			fastboot_in_process = 1;
 			ui_set_screen_state(1);
 			ui_msg(TIPS, "CMD(%s)...", buffer);
 			ui_start_process_bar();
 			cmd->handle((const char *)buffer + cmd->prefix_len,
 				    (void *)download_base, download_size);
+			fastboot_in_process = 0;
 			if (fastboot_state == STATE_COMMAND)
 				fastboot_fail("unknown reason");
 			goto again;
