@@ -8,17 +8,30 @@ LOCAL_SRC_FILES := \
 	fastboot.c \
 	util.c \
 	droidboot.c
+
+LOCAL_C_INCLUDES += bootable/recovery \
+		system/extras/ext4_utils \
+		bionic/libc/private \
+		external/zlib \
+		external/libpng
+
 DROIDBOOT_OTA_UPDATE_FILE ?= /cache/update.zip
 LOCAL_CFLAGS := -DDEVICE_NAME=\"$(TARGET_BOOTLOADER_BOARD_NAME)\" \
 	-W -Wall -Wno-unused-parameter -Werror \
 	-D OTA_UPDATE_FILE='"$(DROIDBOOT_OTA_UPDATE_FILE)"'
 
+ifeq ($(TARGET_RECOVERY_PIXEL_FORMAT),"RGBX_8888")
+LOCAL_CFLAGS += -DRECOVERY_RGBX
+endif
+ifeq ($(TARGET_RECOVERY_PIXEL_FORMAT),"BGRA_8888")
+LOCAL_CFLAGS += -DRECOVERY_BGRA
+endif
+
 LOCAL_MODULE := droidboot
 LOCAL_MODULE_TAGS := eng
 LOCAL_SHARED_LIBRARIES := liblog libext4_utils libz
-LOCAL_STATIC_LIBRARIES += libcharger libminui libmtdutils libpng libpixelflinger_static libc libcutils libvolumeutils libmtdutils libpower
+LOCAL_STATIC_LIBRARIES += libcharger libmtdutils libpng libpixelflinger_static libc libcutils libvolumeutils libmtdutils libpower
 LOCAL_STATIC_LIBRARIES += $(TARGET_DROIDBOOT_LIBS) $(TARGET_DROIDBOOT_EXTRA_LIBS)
-LOCAL_C_INCLUDES += bootable/recovery system/extras/ext4_utils bionic/libc/private external/zlib
 
 #libpixelflinger_static for x86 is using encoder under hardware/intel/apache-harmony
 ifeq ($(TARGET_ARCH),x86)
@@ -61,7 +74,11 @@ $(call intermediates-dir-for,EXECUTABLES,droidboot)/aboot.o : $(inc)
 LOCAL_C_INCLUDES += $(dir $(inc))
 
 ifneq ($(DROIDBOOT_NO_GUI),true)
-LOCAL_SRC_FILES += ui.c
+LOCAL_SRC_FILES += ui.c \
+		minui/events.c \
+		minui/graphics.c \
+		minui/resources.c \
+		minui/timer.c
 LOCAL_CFLAGS += -DUSE_GUI
 endif
 
