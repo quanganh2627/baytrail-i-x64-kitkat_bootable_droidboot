@@ -183,13 +183,20 @@ err:
 static int cmd_flash_system(void *data, unsigned sz)
 {
 	Volume *v;
+	int ret;
 
 	if ((v = volume_for_path("/system")) == NULL) {
 		pr_error("Cannot find system volume!\n");
 		return -1;
 	}
 
-	return named_file_write_decompress_gzip(v->device, data, sz);
+	ret = named_file_write_decompress_gzip(v->device, data, sz);
+
+	if (unlink(FASTBOOT_DOWNLOAD_TMP_FILE) != 0) {
+		pr_error("Cannot remove %s\n", FASTBOOT_DOWNLOAD_TMP_FILE);
+	}
+
+	return ret;
 }
 
 static void cmd_flash(const char *part_name, void *data, unsigned sz)
