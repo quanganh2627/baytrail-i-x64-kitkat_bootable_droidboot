@@ -25,6 +25,9 @@ on boot
     setprop sys.usb.config mass_storage
     class_start default
 
+    # reset counter watchdog at the end of system boot
+    write /sys/devices/virtual/misc/watchdog/counter "0"
+
 #one of the following property triggers will enable adb if it is enabled in regular operation
 
 on property:sys.usb.config=adb
