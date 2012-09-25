@@ -1271,11 +1271,11 @@ enum charger_exit_state charger_run(int min_charge, int mode, int power_key_ms,
     kick_animation(charger->batt_anim);
 
     out_state = charger_event_loop();
-    set_screen_state(1);
     if (out_state == CHARGER_PROCEED && min_charge)
         gr_fb_blank(false);
     free_surfaces(charger->batt_anim);
     ev_exit();
+    set_screen_state(1);
 
     return out_state;
 }
