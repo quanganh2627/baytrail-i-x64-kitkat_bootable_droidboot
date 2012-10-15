@@ -1078,6 +1078,7 @@ void *handle_rtc_alarm_event(void *arg)
     unsigned long data;
     int rtc_fd, ret;
     int batt_cap;
+    struct rtc_wkalrm alarm;
 
     write_alarm_to_osnib(ALARM_CLEAR);
 
@@ -1087,12 +1088,29 @@ void *handle_rtc_alarm_event(void *arg)
         goto err1;
     }
 
-    /* Enable alarm interrupts */
-    ret = ioctl(rtc_fd, RTC_AIE_ON, 0);
+    /* RTC alarm set ? */
+    ret = ioctl(rtc_fd, RTC_WKALM_RD, &alarm);
     if (ret == -1) {
-         LOGE("rtc ioctl RTC_AIE_ON error\n");
-         goto err2;
+        LOGE("ioctl(RTC_WKALM_RD) failed\n");
+        goto err2;
     }
+
+    if (!alarm.enabled)
+        LOGI("no RTC wake-alarm set\n");
+    else
+        LOGI("RTC wake-alarm set: %04d-%02d-%02d %02d:%02d:%02d\n",
+                alarm.time.tm_year+1900,
+                alarm.time.tm_mon+1,
+                alarm.time.tm_mday,
+                alarm.time.tm_hour,
+                alarm.time.tm_min,
+                alarm.time.tm_sec);
+
+    if (!alarm.pending)
+        LOGI("no RTC wake-alarm pending\n");
+    else
+        LOGI("RTC wake-alarm pending\n");
+
 
     /* This blocks until the alarm ring causes an interrupt */
     ret = read(rtc_fd, &data, sizeof(unsigned long));
