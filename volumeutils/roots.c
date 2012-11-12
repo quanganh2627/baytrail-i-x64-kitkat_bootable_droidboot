@@ -34,15 +34,21 @@ Volume* device_volumes = NULL;
 
 static int parse_options(char* options, Volume* volume) {
     char* option;
-    while ((option = strtok(options, ","))) {
-        options = NULL;
+    char *saveptr;
 
+    option = strtok_r(options, ",", &saveptr);
+
+    while (option != NULL) {
         if (strncmp(option, "length=", 7) == 0) {
             volume->length = strtoll(option+7, NULL, 10);
         } else {
             LOGE("bad option \"%s\"\n", option);
             return -1;
         }
+
+        printf("Parse volumes options: volume=%s length=%lld\n", volume->device, volume->length);;
+
+        option = strtok_r(NULL, ",", &saveptr);
     }
     return 0;
 }
