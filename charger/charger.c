@@ -1097,7 +1097,7 @@ void *handle_rtc_alarm_event(void *arg)
 
     if (!alarm.enabled)
         LOGI("no RTC wake-alarm set\n");
-    else
+    else {
         LOGI("RTC wake-alarm set: %04d-%02d-%02d %02d:%02d:%02d\n",
                 alarm.time.tm_year+1900,
                 alarm.time.tm_mon+1,
@@ -1105,6 +1105,14 @@ void *handle_rtc_alarm_event(void *arg)
                 alarm.time.tm_hour,
                 alarm.time.tm_min,
                 alarm.time.tm_sec);
+
+        /* Enable alarm interrupts */
+        ret = ioctl(rtc_fd, RTC_AIE_ON, 0);
+        if (ret == -1) {
+             LOGE("rtc ioctl RTC_AIE_ON error\n");
+             goto err2;
+        }
+    }
 
     if (!alarm.pending)
         LOGI("no RTC wake-alarm pending\n");
