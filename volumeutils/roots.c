@@ -112,7 +112,9 @@ void load_volume_table() {
             device_volumes[num_volumes].device = strdup(device);
             device_volumes[num_volumes].length = 0;
             device_volumes[num_volumes].size_hint = 0;
-            if (parse_options(options, device_volumes + num_volumes) != 0 || strncmp(size_hint, "size_hint=", 10) != 0) {
+            if (parse_options(options, device_volumes + num_volumes) != 0 ||
+                                                        size_hint == NULL ||
+                                                        strncmp(size_hint, "size_hint=", 10) != 0) {
                 LOGE("skipping malformed recovery.fstab line: %s\n", original);
             } else {
                 device_volumes[num_volumes].size_hint = atoi(size_hint+10);
