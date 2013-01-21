@@ -203,6 +203,7 @@ static struct charger charger_state = {
 
 static int char_width;
 static int char_height;
+static pthread_t charger_thread;
 
 extern int set_screen_state(int);
 
@@ -219,31 +220,6 @@ static void clear_screen(void)
     gr_color(0, 0, 0, 255);
     gr_fill(0, 0, gr_fb_width(), gr_fb_height());
 };
-
-static void *screen_state_thread(void *cookie)
-{
-    int fd, err;
-    char buf;
-
-    cookie = cookie; /* unused parameter causes build error */
-    while(1)
-    {
-        fd = open("/sys/power/wait_for_fb_sleep", O_RDONLY, 0);
-        do {
-            err = read(fd, &buf, 1);
-            fprintf(stderr,"wait for sleep %d %d\n", err, errno);
-        } while (err < 0 && errno == EINTR);
-        close(fd);
-        fd = open("/sys/power/wait_for_fb_wake", O_RDONLY, 0);
-        do {
-            err = read(fd, &buf, 1);
-            fprintf(stderr,"wait for wake %d %d\n", err, errno);
-        } while (err < 0 && errno == EINTR);
-        close(fd);
-    }
-    return NULL;
-}
-
 
 #define MAX_KLOG_WRITE_BUF_SZ 256
 
@@ -466,7 +442,7 @@ static void parse_uevent(const char *msg, struct uevent *uevent)
          uevent->ps_name, uevent->ps_type, uevent->ps_online);
 }
 
-static void process_ps_uevent(struct charger *charger, struct uevent *uevent)
+static int process_ps_uevent(struct charger *charger, struct uevent *uevent)
 {
     int online;
     char ps_type[32];
@@ -474,20 +450,23 @@ static void process_ps_uevent(struct charger *charger, struct uevent *uevent)
     bool was_online = false;
     bool battery = false;
     int old_supplies_online = charger->num_supplies_online;
+    int ret = -1;
 
     if (uevent->ps_type[0] == '\0') {
         char *path;
-        int ret;
 
         if (uevent->path[0] == '\0')
-            return;
+            goto error;
         ret = asprintf(&path, "/sys/%s/type", uevent->path);
-        if (ret <= 0)
-            return;
+        if (ret <= 0) {
+            ret = -1;
+            goto error;
+        }
         ret = read_file(path, ps_type, sizeof(ps_type));
         free(path);
         if (ret < 0)
-            return;
+            LOGE("Failed to read /sys/%s/type\n", uevent->path);
+            goto error;
     } else {
         strlcpy(ps_type, uevent->ps_type, sizeof(ps_type));
     }
@@ -509,7 +488,8 @@ static void process_ps_uevent(struct charger *charger, struct uevent *uevent)
             if (!supply) {
                 LOGE("cannot add supply '%s' (%s %d)\n", uevent->ps_name,
                      uevent->ps_type, online);
-                return;
+                ret = -1;
+                goto error;
             }
             /* only pick up the first battery for now */
             if (battery && !charger->battery)
@@ -528,10 +508,13 @@ static void process_ps_uevent(struct charger *charger, struct uevent *uevent)
         if (!supply) {
             LOGE("power supply '%s' not found ('%s' %d)\n",
                  uevent->ps_name, ps_type, online);
-            return;
+            ret = -1;
+            goto error;
         }
     } else {
-        return;
+        LOGE("Unknown uevent action \"%s\"\n", uevent->action);
+        ret = -1;
+        goto error;
     }
 
     /* allow battery to be managed in the supply list but make it not
@@ -550,12 +533,23 @@ static void process_ps_uevent(struct charger *charger, struct uevent *uevent)
     LOGI("power supply %s (%s) %s (action=%s num_online=%d num_supplies=%d)\n",
          uevent->ps_name, ps_type, battery ? "" : online ? "online" : "offline",
          uevent->action, charger->num_supplies_online, charger->num_supplies);
+
+    return 0;
+
+error:
+    LOGE("Failed to process event { '%s', '%s', '%s', '%s', '%s', '%s' }\n",
+         uevent->action, uevent->path, uevent->subsystem,
+         uevent->ps_name, uevent->ps_type, uevent->ps_online);
+
+    return ret;
+
 }
 
-static void process_uevent(struct charger *charger, struct uevent *uevent)
+static int process_uevent(struct charger *charger, struct uevent *uevent)
 {
     if (!strcmp(uevent->subsystem, "power_supply"))
-        process_ps_uevent(charger, uevent);
+        return process_ps_uevent(charger, uevent);
+    return 0;
 }
 
 #define UEVENT_MSG_LEN  1024
@@ -563,6 +557,7 @@ static int handle_uevent_fd(struct charger *charger, int fd)
 {
     char msg[UEVENT_MSG_LEN+2];
     int n;
+    int ret = 0;
 
     if (fd < 0)
         return -1;
@@ -580,10 +575,14 @@ static int handle_uevent_fd(struct charger *charger, int fd)
         msg[n+1] = '\0';
 
         parse_uevent(msg, &uevent);
-        process_uevent(charger, &uevent);
+        ret = process_uevent(charger, &uevent);
+        if (ret < 0 ) {
+            LOGE("Did not process event %s %s\n", uevent.subsystem, uevent.action);
+            break;
+        }
     }
 
-    return 0;
+    return ret;
 }
 
 static int uevent_callback(int fd, short revents, void *data)
@@ -601,15 +600,24 @@ static void do_coldboot(struct charger *charger, DIR *d, const char *event,
                         bool follow_links, int max_depth)
 {
     struct dirent *de;
-    int dfd, fd;
+    int dfd, fd, nbwr;
 
     dfd = dirfd(d);
-
-    fd = openat(dfd, "uevent", O_WRONLY);
-    if (fd >= 0) {
-        write(fd, event, strlen(event));
-        close(fd);
-        handle_uevent_fd(charger, charger->uevent_fd);
+    if (dfd >= 0) {
+        fd = openat(dfd, "uevent", O_WRONLY);
+        if (fd >= 0) {
+            nbwr = write(fd, event, strlen(event));
+            close(fd);
+            if (nbwr <= 0) {
+                LOGE("Failed to write event %s\n", event);
+                goto close_dfd;
+            }
+            handle_uevent_fd(charger, charger->uevent_fd);
+        }
+    }
+    else {
+        LOGE("Failed to get dir file descriptor %d\n", dfd);
+        goto out;
     }
 
     while ((de = readdir(d)) && max_depth > 0) {
@@ -628,19 +636,22 @@ static void do_coldboot(struct charger *charger, DIR *d, const char *event,
         fd = openat(dfd, de->d_name, O_RDONLY | O_DIRECTORY);
         if (fd < 0) {
             LOGE("cannot openat %d '%s' (%d: %s)\n", dfd, de->d_name,
-                 errno, strerror(errno));
+                errno, strerror(errno));
             continue;
         }
 
         d2 = fdopendir(fd);
-        if (d2 == 0)
-            close(fd);
-        else {
+        if (d2 != 0) {
             LOGV("opened '%s'\n", de->d_name);
             do_coldboot(charger, d2, event, follow_links, max_depth - 1);
             closedir(d2);
         }
+        close(fd);
     }
+close_dfd:
+    close(dfd);
+out:
+    return;
 }
 
 static void coldboot(struct charger *charger, const char *path,
@@ -651,7 +662,8 @@ static void coldboot(struct charger *charger, const char *path,
     LOGV("doing coldboot '%s' in '%s'\n", event, path);
     DIR *d = opendir(path);
     if (d) {
-        snprintf(str, sizeof(str), "%s\n", event);
+        str[255] = 0;
+        snprintf(str, sizeof(str) - 1, "%s\n", event);
         do_coldboot(charger, d, str, true, 1);
         closedir(d);
     }
@@ -1029,20 +1041,30 @@ static int get_max_temp(void)
 
 static void handle_temperature_state(struct charger *charger)
 {
-    int temp;
+    int temp, ret;
     FILE *temp_fd;
 
     if (charger->max_temp == -1)
-        return;
+        goto out;
 
     temp_fd = fopen(SYS_TEMP_INT, "r");
     if (temp_fd == NULL) {
         LOGE("Unable to open file %s\n", SYS_TEMP_INT);
-        return;
+        goto out;
     }
 
-    fseek(temp_fd, 0, SEEK_SET);
-    fscanf(temp_fd, "%d\n", &temp);
+    ret = fseek(temp_fd, 0, SEEK_SET);
+    if (ret != 0) {
+        LOGE("Unable to set file position %d\n", ret);
+        goto close_temp_fd;
+    }
+
+    ret  = fscanf(temp_fd, "%d\n", &temp);
+    if (ret <= 0) {
+        LOGE("Unable to read file %d\n", ret);
+        goto close_temp_fd;
+    }
+
     if (temp >= charger->max_temp) {
         set_screen_state(1);
         LOGI("Temperature(%d) is higher than threshold(%d), "
@@ -1051,7 +1073,10 @@ static void handle_temperature_state(struct charger *charger)
         system("echo 1 > /sys/module/intel_mid_osip/parameters/force_shutdown_occured");
     }
 
+close_temp_fd:
     fclose(temp_fd);
+out:
+    return;
 }
 
 int write_alarm_to_osnib(int mode)
@@ -1233,7 +1258,6 @@ enum charger_exit_state charger_run(int min_charge, int mode, int power_key_ms,
     int64_t now = curr_time_ms() - 1;
     struct charger *charger = &charger_state;
     enum charger_exit_state out_state;
-    pthread_t t;
 
     dump_last_kmsg();
 
@@ -1243,8 +1267,6 @@ enum charger_exit_state charger_run(int min_charge, int mode, int power_key_ms,
         LOGI("--------------- STARTING CHARGER MODE TEMPORARILY ---------------\n");
 
     gr_font_size(&char_width, &char_height);
-
-    pthread_create(&t, NULL, screen_state_thread, NULL);
 
     list_init(&charger->supplies);
     charger->min_charge = min_charge;
@@ -1259,7 +1281,7 @@ enum charger_exit_state charger_run(int min_charge, int mode, int power_key_ms,
     if (charger->max_temp == -1)
         LOGE("Error in getting maximum temperature threshold");
 
-    if (pthread_create(&t, NULL, handle_rtc_alarm_event, charger) != 0)
+    if (pthread_create(&charger_thread, NULL, handle_rtc_alarm_event, charger) != 0)
         LOGE("Error in creating rtc-alarm thread\n");
 
     ev_exit();
@@ -1270,6 +1292,9 @@ enum charger_exit_state charger_run(int min_charge, int mode, int power_key_ms,
         fcntl(fd, F_SETFL, O_NONBLOCK);
         ev_add_fd(fd, uevent_callback, charger);
     }
+    else
+        LOGE("Failed to create uevent socket\n");
+
     charger->uevent_fd = fd;
     coldboot(charger, "/sys/class/power_supply", "add");
 
