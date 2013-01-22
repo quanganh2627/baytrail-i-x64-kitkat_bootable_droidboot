@@ -77,4 +77,11 @@ enum charger_exit_state {
 enum charger_exit_state charger_run(int min_charge, int mode, int power_key_ms,
         int batt_unknown_ms, int unplug_shutdown_ms, int cap_poll_ms);
 
+/* This function allows to get the battery level from droidboot.
+ *
+ * Return Value:
+ * integer value of the read battery level.
+ */
+int get_battery_level(void);
+
 #endif

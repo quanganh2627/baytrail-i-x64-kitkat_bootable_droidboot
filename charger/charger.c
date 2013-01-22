@@ -369,6 +369,15 @@ static int get_battery_capacity(struct charger *charger)
     return batt_cap;
 }
 
+/* This function allows to get the battery level from droidboot */
+int get_battery_level(void)
+{
+    struct charger *charger = &charger_state;
+
+    // returns -1 in case of error
+    return get_battery_capacity(charger);
+}
+
 static struct power_supply *find_supply(struct charger *charger,
                                         const char *name)
 {
@@ -983,7 +992,6 @@ static void handle_capacity_state(struct charger *charger, int64_t now)
         LOGV("[%lld] battery capacity %d%% < %d%%\n", now,
                 charge_pct, charger->min_charge);
 
-
     if (charger->num_supplies_online == 0)
         charger->next_cap_check = -1;
     else
@@ -1118,7 +1126,6 @@ void *handle_rtc_alarm_event(void *arg)
         LOGI("no RTC wake-alarm pending\n");
     else
         LOGI("RTC wake-alarm pending\n");
-
 
     /* This blocks until the alarm ring causes an interrupt */
     ret = read(rtc_fd, &data, sizeof(unsigned long));
@@ -1305,5 +1312,4 @@ enum charger_exit_state charger_run(int min_charge, int mode, int power_key_ms,
 
     return out_state;
 }
-
 
