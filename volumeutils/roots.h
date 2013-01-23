@@ -47,6 +47,11 @@ int ensure_path_mounted(const char* path);
 // success (volume is unmounted);
 int ensure_path_unmounted(const char* path);
 
+// wipe the volume with
+// mode == BLKDISCARD (quick & unsecure)
+// mode == BLKSECDISCARD (slow & secure)
+int wipe_volume(const char *volume, int mode);
+
 // Reformat the given volume (must be the mount point only, eg
 // "/cache"), no paths permitted.  Attempts to unmount the volume if
 // it is mounted.

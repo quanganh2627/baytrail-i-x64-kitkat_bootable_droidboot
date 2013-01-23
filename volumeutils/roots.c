@@ -29,6 +29,21 @@
 #include "make_ext4fs.h"
 #include "droidboot_ui.h"
 
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <linux/fs.h>
+#include <sys/ioctl.h>
+
+#ifndef O_BINARY
+#define O_BINARY 0
+#endif
+
+#ifndef BLKDISCARD
+#define BLKDISCARD _IO(0x12,119)
+#endif
+
+
 int num_volumes = 0;
 Volume* device_volumes = NULL;
 
@@ -232,6 +247,38 @@ int ensure_path_unmounted(const char* path) {
     return unmount_mounted_volume(mv);
 }
 
+int wipe_volume(const char *volume, int mode) {
+    u64 range[2];
+    int result = 0;
+    Volume* v = volume_for_path(volume);
+
+    if (v == NULL) {
+        LOGE("unknown volume \"%s\"\n", volume);
+        return -1;
+    }
+
+    LOGI("BLK(%d)DISCARD on %s (size: %lld)\n", mode, v->device, v->length);
+
+    int fd = open(v->device, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0644);
+    if (fd < 0) {
+        LOGE("open failed on %s\n", v->device);
+        return -1;
+    }
+
+    range[0] = 0;
+    range[1] = get_file_size(fd);
+
+    result = ioctl(fd, mode, &range);
+    if (result < 0) {
+        LOGE("BLK(%d)DISCARD failed on %s (size: %lld)\n", mode, v->device, range[1]);
+        result = -1;
+    }
+
+    close(fd);
+
+    return result;
+}
+
 int format_volume(const char* volume) {
     Volume* v = volume_for_path(volume);
     if (v == NULL) {
@@ -275,6 +322,9 @@ int format_volume(const char* volume) {
         }
         return 0;
     }
+
+    if (wipe_volume(volume, BLKDISCARD) < 0)
+        return -1;
 
     if (strcmp(v->fs_type, "ext4") == 0) {
         int result = make_ext4fs(v->device, v->length, volume, NULL);
