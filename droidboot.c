@@ -353,18 +353,6 @@ int main(int argc, char **argv)
 
 	ui_show_process(VISIBLE);
 	load_volume_table();
-	if (ufdisk_need_create_partition()) {
-		ui_msg(TIPS, "PARTITION EMMC...");
-		ui_start_process_bar();
-		ufdisk_create_partition();
-		ui_msg(TIPS, " ");
-		ui_stop_process_bar();
-	}
-
-	if (ensure_path_mounted("/logs") != 0)
-		pr_error("unable to mount the log partition\n");
-	else
-		property_set("service.apk_logfs.enable", "1");
 
 #ifdef USE_GUI
 	ui_block_show(TITLE);
