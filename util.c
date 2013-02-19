@@ -68,13 +68,18 @@ int named_file_write_decompress_gzip(const char *filename,
 
 	dest = fopen(filename, "w");
 	if (!dest) {
-		pr_perror("fopen");
+		pr_perror("fopen dest");
 		return -1;
 	}
 
 	if (strncmp((const char*)what, FASTBOOT_DOWNLOAD_TMP_FILE, sz) == 0) {
 		data_in_mem = 0;
 		src = fopen(FASTBOOT_DOWNLOAD_TMP_FILE, "r");
+		if (src == NULL) {
+			pr_perror("fopen src");
+			ret = -1;
+			goto out;
+		}
 	} else
 		data_in_mem = 1;
 

@@ -55,13 +55,15 @@ void restart_timer(ui_timer_t *t, struct timeval *_now) {
 ui_timer_t *ui_alloc_timer(ui_timer_cb_t cb, int ui_timer, void *data)
 {
 	ui_timer_t *t = calloc(1, sizeof(ui_timer_t));
-	t->cb = cb;
-	t->ui_timer = ui_timer;
-	t->data = data;
-        pthread_mutex_lock(&gTimerMutex);
-	t->next = gTimerRoot;
-	gTimerRoot = t;
-        pthread_mutex_unlock(&gTimerMutex);
+	if (t != NULL) {
+		t->cb = cb;
+		t->ui_timer = ui_timer;
+		t->data = data;
+		pthread_mutex_lock(&gTimerMutex);
+		t->next = gTimerRoot;
+		gTimerRoot = t;
+		pthread_mutex_unlock(&gTimerMutex);
+	}
 	return t;
 }
 
@@ -147,9 +149,17 @@ ui_timer_t *t2;
 void* start_timers(void *a)
 {
 	sleep(2);
-	ui_start_timer(t1, 200);
+	if (t1 != NULL){
+		ui_start_timer(t1, 200);
+	}else{
+		perror("t1 could not be start!");
+	}
 	sleep(1);
-	ui_start_timer(t2, 1159);
+	if (t2 != NULL){
+		ui_start_timer(t2, 1159);
+	}else{
+		perror("t2 could not be start!");
+	}
 	return 0;
 }
 int main(int argc, char **argv)
@@ -160,6 +170,7 @@ int main(int argc, char **argv)
 	ev_init();
 	t1 = ui_alloc_timer(timer1_cb, NULL);
 	t2 = ui_alloc_timer(timer2_cb, NULL);
+
 	pthread_create(&thr, NULL, start_timers, NULL);
 	while(1)
 	{

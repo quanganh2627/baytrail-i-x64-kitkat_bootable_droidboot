@@ -621,9 +621,21 @@ void ui_init(void)
 
 	acquire_wake_lock(1, "fastboot");
 	gScreenSaverTimer = ui_alloc_timer(screen_saver_timer_cb, 1, NULL);
+	if (gScreenSaverTimer == NULL) {
+		printf("ERROR on gScreenSaverTimer");
+		return;
+	}
 	ui_start_timer(gScreenSaverTimer, SCREENSAVER_DELAY);
 	gBrightnessTimer = ui_alloc_timer(set_back_brightness_timer, 1, NULL);
+	if (gBrightnessTimer == NULL) {
+		printf("ERROR on gBrightnessTimer");
+		return;
+	}
 	gProgressTimer = ui_alloc_timer(progress_timer_cb, 1, NULL);
+	if (gProgressTimer == NULL) {
+		printf("ERROR on gProgressTimer");
+		return;
+	}
 
 	int i;
 	for (i = 0; BITMAPS[i].name != NULL; ++i) {
