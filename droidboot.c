@@ -71,6 +71,14 @@ static int g_scratch_size = 400;
 /* Minimum battery % before we do anything */
 static int g_min_battery = 10;
 
+/* Flag to enable/disable auto paritionning from kernel command line -
+   Disabled by default */
+static int g_auto_partition = 0;
+
+/* Flag to enable/disable the mount of partitions from kernel command line -
+   Enabled by default */
+static int g_mount_partition = 1;
+
 #ifdef USE_GUI
 
 #define NO_ACTION           -1
@@ -281,6 +289,10 @@ static void parse_cmdline_option(char *name)
 		g_scratch_size = atoi(value);
 	} else if (!strcmp(name, "droidboot.minbatt")) {
 		g_min_battery = atoi(value);
+	} else if (!strcmp(name, "droidboot.autopart")) {
+		g_auto_partition = atoi(value);
+	} else if (!strcmp(name, "droidboot.mountpart")) {
+		g_mount_partition = atoi(value);
 	} else {
 		pr_error("Unknown parameter %s, ignoring\n", name);
 	}
@@ -293,6 +305,8 @@ static void *fastboot_thread(void *arg)
 	fastboot_init(g_scratch_size * MEGABYTE);
 	return NULL;
 }
+
+extern int oem_partition_cmd_handler(int argc, char **argv);
 
 int main(int argc, char **argv)
 {
@@ -353,6 +367,23 @@ int main(int argc, char **argv)
 
 	ui_show_process(VISIBLE);
 	load_volume_table();
+
+	// Create automatically partitions if they do not exist
+	// and if specified in the kernel command line
+	if (ufdisk_need_create_partition()) {
+		if(g_auto_partition == 1) {
+			// set the property to allow the partitioning
+			property_set("sys.partitioning", "1");
+			char *path[] = {0,"/etc/partition.tbl"};
+			oem_partition_cmd_handler(2,(char **)path);
+		}
+	}
+
+	// Unless specified in the kernel command line, by default,
+	// the partitions are mounted !
+	if(g_mount_partition  == 1)
+		// set the property to mount the partitions
+		property_set("sys.partitioning", "0");
 
 #ifdef USE_GUI
 	ui_block_show(TITLE);
