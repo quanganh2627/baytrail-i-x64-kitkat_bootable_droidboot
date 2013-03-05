@@ -25,6 +25,10 @@ typedef struct {
     const char* device;       // MTD partition name if fs_type == "yaffs"
                               // block device if fs_type == "ext4" or "vfat"
 
+    const char* device2;      // alternative device to try if fs_type
+                              // == "ext4" or "vfat" and mounting
+                              // 'device' fails
+
     long long length;         // (ext4 partition only) when
                               // formatting, size in bytes to use for the
                               // partition.  0 or negative number
