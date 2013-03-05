@@ -365,9 +365,51 @@ static int wait_device_creation_timeout(const char *device, int times)
 	return ret;
 }
 
+static int get_partition_size(void)
+{
+	int num_vol = 0;
+
+	FILE* fstab = fopen("/etc/recovery.fstab", "r");
+	if (fstab == NULL) {
+		LOGE("failed to open /etc/recovery.fstab (%s)\n", strerror(errno));
+		return -1;
+	}
+
+	char buffer[32];
+	int i;
+	while (fgets(buffer, sizeof(buffer)-1, fstab)) {
+		for (i = 0; buffer[i] && isspace(buffer[i]); ++i);
+		if (buffer[i] == '\0' || buffer[i] != '#') continue;
+
+		char* original = strdup(buffer);
+
+		// read size_hint specified as a comment in recovery.fstab
+		char* size_hint = strtok(buffer+i, " \t\n");
+
+		Volume* v = device_volumes+num_vol;
+
+		v->size_hint = 0;
+		if (size_hint == NULL || strncmp(size_hint, "#size_hint=", 11) != 0) {
+			LOGE("skipping malformed recovery.fstab line: %s\n", original);
+		} else {
+			v->size_hint = atoi(size_hint+11);
+			++num_vol;
+		}
+
+		free(original);
+	}
+
+	fclose(fstab);
+
+	return 0;
+}
+
 int ufdisk_need_create_partition(void)
 {
 	int i, ret = 0;
+
+	if(get_partition_size() != 0)
+		return -1;
 
 	for (i = 0; i < num_volumes; ++i) {
 		Volume* v = device_volumes+i;
@@ -392,6 +434,9 @@ int ufdisk_create_partition(void)
 	dev = open_disk(EMMC_BASEDEVICE);
 	if (dev == NULL)
 		return -ENODEV;
+
+	if(get_partition_size() != 0)
+		return -EINVAL;
 
 	/* first pass to calculate remaining space,
 	   and check if we need to partition */
