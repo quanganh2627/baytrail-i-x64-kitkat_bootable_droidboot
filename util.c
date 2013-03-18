@@ -147,7 +147,7 @@ int named_file_write_decompress_gzip(const char *filename,
 out:
 	/* clean up and return */
 	(void)inflateEnd(&strm);
-	if (!data_in_mem)
+        if (src)
 		fclose(src);
 	fclose(dest);
 	return ret;
