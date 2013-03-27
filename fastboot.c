@@ -43,6 +43,8 @@
 #include "fastboot.h"
 #include "droidboot_util.h"
 
+#define FILEMODE  S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH
+
 struct fastboot_cmd {
 	struct fastboot_cmd *next;
 	const char *prefix;
@@ -259,7 +261,7 @@ static void cmd_download(const char *arg, void *data, unsigned sz)
 		if (tmp_fp >=0 )
 			close(tmp_fp);
 		ensure_path_mounted(FASTBOOT_DOWNLOAD_TMP_FILE);
-		tmp_fp = open(FASTBOOT_DOWNLOAD_TMP_FILE, O_RDWR | O_CREAT | O_TRUNC);
+		tmp_fp = open(FASTBOOT_DOWNLOAD_TMP_FILE, O_RDWR | O_CREAT | O_TRUNC, FILEMODE);
 		if (tmp_fp < 0) {
 			fastboot_fail("unable to create download file");
 			return;
