@@ -49,29 +49,42 @@ Volume* device_volumes = NULL;
 
 static int parse_options(char* options, Volume* volume) {
     char* option;
-    while ((option = strtok(options, ","))) {
-        options = NULL;
+    char *saveptr;
 
+    option = strtok_r(options, ",", &saveptr);
+
+    while (option != NULL) {
         if (strncmp(option, "length=", 7) == 0) {
             volume->length = strtoll(option+7, NULL, 10);
         } else {
             LOGE("bad option \"%s\"\n", option);
             return -1;
         }
+
+        printf("Parse volumes options: volume=%s length=%lld\n", volume->device, volume->length);;
+
+        option = strtok_r(NULL, ",", &saveptr);
     }
     return 0;
 }
 
 void load_volume_table() {
     int alloc = 2;
+    Volume* tmp_volumes = NULL;
+
     device_volumes = (Volume*)malloc(alloc * sizeof(Volume));
+
+    if (device_volumes == NULL) {
+        LOGE("failed to allocate device volumes (%s)\n", strerror(errno));
+        return;
+    }
 
     // Insert an entry for /tmp, which is the ramdisk and is always mounted.
     device_volumes[0].mount_point = "/tmp";
     device_volumes[0].fs_type = "ramdisk";
     device_volumes[0].device = NULL;
-    device_volumes[0].device2 = NULL;
     device_volumes[0].length = 0;
+    device_volumes[0].size_hint = 0;
     num_volumes = 1;
 
     FILE* fstab = fopen("/etc/recovery.fstab", "r");
@@ -91,34 +104,35 @@ void load_volume_table() {
         char* mount_point = strtok(buffer+i, " \t\n");
         char* fs_type = strtok(NULL, " \t\n");
         char* device = strtok(NULL, " \t\n");
-        // lines may optionally have a second device, to use if
-        // mounting the first one fails.
-        char* options = NULL;
-        char* device2 = strtok(NULL, " \t\n");
-        if (device2) {
-            if (device2[0] == '/') {
-                options = strtok(NULL, " \t\n");
-            } else {
-                options = device2;
-                device2 = NULL;
-            }
-        }
+        char* options = strtok(NULL, " \t\n");
+        char* size_hint = strtok(NULL, " \t\n");
 
         if (mount_point && fs_type && device) {
             while (num_volumes >= alloc) {
                 alloc *= 2;
-                device_volumes = (Volume*)realloc(device_volumes, alloc*sizeof(Volume));
+                tmp_volumes = (Volume*)realloc(device_volumes, alloc*sizeof(Volume));
+
+                if (tmp_volumes == NULL) {
+                    LOGE("failed to reallocate device volumes (%s)\n", strerror(errno));
+                    free(device_volumes);
+                    device_volumes = NULL;
+                    fclose(fstab);
+                    return;
+                }
+
+                device_volumes = tmp_volumes;
             }
             device_volumes[num_volumes].mount_point = strdup(mount_point);
             device_volumes[num_volumes].fs_type = strdup(fs_type);
             device_volumes[num_volumes].device = strdup(device);
-            device_volumes[num_volumes].device2 =
-                device2 ? strdup(device2) : NULL;
-
             device_volumes[num_volumes].length = 0;
-            if (parse_options(options, device_volumes + num_volumes) != 0) {
+            device_volumes[num_volumes].size_hint = 0;
+            if (parse_options(options, device_volumes + num_volumes) != 0 ||
+                                                        size_hint == NULL ||
+                                                        strncmp(size_hint, "size_hint=", 10) != 0) {
                 LOGE("skipping malformed recovery.fstab line: %s\n", original);
             } else {
+                device_volumes[num_volumes].size_hint = atoi(size_hint+10);
                 ++num_volumes;
             }
         } else {
@@ -133,8 +147,8 @@ void load_volume_table() {
     LOGI("=========================\n");
     for (i = 0; i < num_volumes; ++i) {
         Volume* v = &device_volumes[i];
-        LOGI("  %d %s %s %s %s %lld\n", i, v->mount_point, v->fs_type,
-               v->device, v->device2, v->length);
+        LOGI("  %d %s %s %s %lld\n", i, v->mount_point, v->fs_type,
+               v->device, v->length);
     }
     LOGI("\n");
 }
@@ -196,14 +210,6 @@ int ensure_path_mounted(const char* path) {
         result = mount(v->device, v->mount_point, v->fs_type,
                        MS_NOATIME | MS_NODEV | MS_NODIRATIME, "");
         if (result == 0) return 0;
-
-        if (v->device2) {
-            LOGW("failed to mount %s (%s); trying %s\n",
-                 v->device, strerror(errno), v->device2);
-            result = mount(v->device2, v->mount_point, v->fs_type,
-                           MS_NOATIME | MS_NODEV | MS_NODIRATIME, "");
-            if (result == 0) return 0;
-        }
 
         LOGE("failed to mount %s (%s)\n", v->mount_point, strerror(errno));
         return -1;
