@@ -20,7 +20,7 @@
 
 #ifndef _DROIDBOOT_UI_H_
 #define _DROIDBOOT_UI_H_
-#include "logd.h"
+#include "libc_logging.h"
 
 /* logcat support */
 #ifndef LOG_TAG
@@ -32,22 +32,22 @@
 #define pr_perror(x)	pr_error("%s failed: %s\n", x, strerror(errno))
 
 #define LOGW(format, ...) \
-    __libc_android_log_print(ANDROID_LOG_WARN, LOG_TAG, (format), ##__VA_ARGS__ )
+    __libc_format_log(ANDROID_LOG_WARN, LOG_TAG, (format), ##__VA_ARGS__ )
 #define LOGI(format, ...) \
-    __libc_android_log_print(ANDROID_LOG_INFO, LOG_TAG, (format), ##__VA_ARGS__ )
+    __libc_format_log(ANDROID_LOG_INFO, LOG_TAG, (format), ##__VA_ARGS__ )
 #define LOGV(format, ...) \
-    __libc_android_log_print(ANDROID_LOG_VERBOSE, LOG_TAG, (format), ##__VA_ARGS__ )
+    __libc_format_log(ANDROID_LOG_VERBOSE, LOG_TAG, (format), ##__VA_ARGS__ )
 #define LOGD(format, ...) \
-    __libc_android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, (format), ##__VA_ARGS__ )
+    __libc_format_log(ANDROID_LOG_DEBUG, LOG_TAG, (format), ##__VA_ARGS__ )
 #define pr_warning(format, ...) \
-	__libc_android_log_print(ANDROID_LOG_WARN, LOG_TAG, (format), ##__VA_ARGS__ )
+	__libc_format_log(ANDROID_LOG_WARN, LOG_TAG, (format), ##__VA_ARGS__ )
 #define pr_info(format, ...) \
-	__libc_android_log_print(ANDROID_LOG_INFO, LOG_TAG, (format), ##__VA_ARGS__ )
+	__libc_format_log(ANDROID_LOG_INFO, LOG_TAG, (format), ##__VA_ARGS__ )
 #define pr_debug(format, ...) \
-	__libc_android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, (format), ##__VA_ARGS__ )
+	__libc_format_log(ANDROID_LOG_DEBUG, LOG_TAG, (format), ##__VA_ARGS__ )
 #if VERBOSE_DEBUG
 #define pr_verbose(format, ...) \
-	__libc_android_log_print(ANDROID_LOG_VERBOSE, LOG_TAG, (format), ##__VA_ARGS__ )
+	__libc_format_log(ANDROID_LOG_VERBOSE, LOG_TAG, (format), ##__VA_ARGS__ )
 #else
 #define pr_verbose(format, ...)				do { } while (0)
 #endif
@@ -68,12 +68,12 @@ enum {
 #define LOGE(format, ...) \
     do { \
         ui_print("E:" format, ##__VA_ARGS__); \
-        __libc_android_log_print(ANDROID_LOG_ERROR, LOG_TAG, (format), ##__VA_ARGS__ ); \
+        __libc_format_log(ANDROID_LOG_ERROR, LOG_TAG, (format), ##__VA_ARGS__ ); \
     } while (0)
 #define pr_error(format, ...) \
     do { \
         ui_print("E:" format, ##__VA_ARGS__); \
-        __libc_android_log_print(ANDROID_LOG_ERROR, LOG_TAG, (format), ##__VA_ARGS__ ); \
+        __libc_format_log(ANDROID_LOG_ERROR, LOG_TAG, (format), ##__VA_ARGS__ ); \
     } while (0)
 
 //default const UI values.
@@ -160,11 +160,11 @@ void ui_init();
 
 #define LOGE(format, ...) \
 	do { \
-	__libc_android_log_print(ANDROID_LOG_ERROR, LOG_TAG, (format), ##__VA_ARGS__ ); \
+	__libc_format_log(ANDROID_LOG_ERROR, LOG_TAG, (format), ##__VA_ARGS__ ); \
 	} while (0)
 #define pr_error(format, ...) \
 	do { \
-	__libc_android_log_print(ANDROID_LOG_ERROR, LOG_TAG, (format), ##__VA_ARGS__ ); \
+	__libc_format_log(ANDROID_LOG_ERROR, LOG_TAG, (format), ##__VA_ARGS__ ); \
 	} while (0)
 
 #define ui_set_background(x)			do { } while (0)
