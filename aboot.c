@@ -58,6 +58,8 @@
 #define SYSTEM_BUF_SIZ     512    /* For system() and popen() calls. */
 #define FILE_NAME_SIZ    50     /* /dev/<whatever> */
 
+#define FILEMODE  S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH
+
 Hashmap *flash_cmds;
 Hashmap *oem_cmds;
 
@@ -157,7 +159,7 @@ static int cmd_flash_update(void *data, unsigned sz)
 			pr_error("Unable to create /cache/recovery directory!\n");
 			goto err;
 	}
-	if ((fd = open("/cache/recovery/command", O_CREAT | O_WRONLY)) < 0) {
+	if ((fd = open("/cache/recovery/command", O_CREAT | O_WRONLY, FILEMODE)) < 0) {
 		pr_error("Unable to open /cache/recovery/command file!\n");
 		goto err;
 	}
