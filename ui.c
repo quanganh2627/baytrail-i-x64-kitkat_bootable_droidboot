@@ -142,6 +142,8 @@ static char gBrightnessPath[255];
 static int gScreenState = 1;
 static int gTargetScreenState = 1;
 
+static int ui_initialized = 0;
+
 /**** screen state, and screen saver   *****/
 
 extern int set_screen_state(int);
@@ -441,6 +443,12 @@ void ui_print(const char *fmt, ...)
 	va_end(ap);
 
 	fputs(buf, stdout);
+
+	if (!ui_initialized) {
+		fprintf(stderr, "ui_print failed: UI not initialized\n");
+		return;
+	}
+
 	pthread_mutex_lock(&gUpdateMutex);
 	char *ptr = buf;
 	for (; *ptr != '\0'; ++ptr) {
@@ -651,5 +659,7 @@ void ui_init(void)
 	}
 	pthread_t t;
 	pthread_create(&t, NULL, screen_state_thread, NULL);
+
+	ui_initialized = 1;
 }
 
