@@ -64,7 +64,14 @@ static int parse_options(char* options, Volume* volume) {
 
 void load_volume_table() {
     int alloc = 2;
+    Volume* tmp_volumes = NULL;
+
     device_volumes = (Volume*)malloc(alloc * sizeof(Volume));
+
+    if (device_volumes == NULL) {
+        LOGE("failed to allocate device volumes (%s)\n", strerror(errno));
+        return;
+    }
 
     // Insert an entry for /tmp, which is the ramdisk and is always mounted.
     device_volumes[0].mount_point = "/tmp";
@@ -107,7 +114,17 @@ void load_volume_table() {
         if (mount_point && fs_type && device) {
             while (num_volumes >= alloc) {
                 alloc *= 2;
-                device_volumes = (Volume*)realloc(device_volumes, alloc*sizeof(Volume));
+                tmp_volumes = (Volume*)realloc(device_volumes, alloc*sizeof(Volume));
+
+                if (tmp_volumes == NULL) {
+                    LOGE("failed to reallocate device volumes (%s)\n", strerror(errno));
+                    free(device_volumes);
+                    device_volumes = NULL;
+                    fclose(fstab);
+                    return;
+                }
+
+                device_volumes = tmp_volumes;
             }
             device_volumes[num_volumes].mount_point = strdup(mount_point);
             device_volumes[num_volumes].fs_type = strdup(fs_type);
