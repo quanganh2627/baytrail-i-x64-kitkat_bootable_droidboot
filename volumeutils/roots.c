@@ -95,13 +95,15 @@ void load_volume_table() {
         if (buffer[i] == '\0' || buffer[i] == '#') continue;
 
         char* original = strdup(buffer);
+        char* device = strtok(buffer+i, " \t\n");
 
-        char* mount_point = strtok(buffer+i, " \t\n");
+
+        char* mount_point = strtok(NULL, " \t\n");
         char* fs_type = strtok(NULL, " \t\n");
-        char* device = strtok(NULL, " \t\n");
         // lines may optionally have a second device, to use if
         // mounting the first one fails.
         char* options = NULL;
+        strtok(NULL, " \t\n");
         char* device2 = strtok(NULL, " \t\n");
         if (device2) {
             if (device2[0] == '/') {
