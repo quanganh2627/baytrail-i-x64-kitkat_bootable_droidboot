@@ -27,6 +27,11 @@ to test:
 #ifdef TEST
 #define ui_print printf
 #endif
+
+#ifndef STORAGE_BASE_PATH
+#define STORAGE_BASE_PATH "/"
+#endif
+
 /*
   useful ioctls:
  BLKRRPART: re-read partition table
@@ -308,7 +313,7 @@ static int write_partitions(struct block_dev *dev)
 }
 extern int num_volumes;
 extern Volume* device_volumes;
-#define _EMMC_BASEDEVICE "/dev/block/mmcblk0"
+#define _EMMC_BASEDEVICE STORAGE_BASE_PATH
 
 #ifdef TEST
 char *EMMC_BASEDEVICE;
