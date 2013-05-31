@@ -464,9 +464,10 @@ static int process_ps_uevent(struct charger *charger, struct uevent *uevent)
         }
         ret = read_file(path, ps_type, sizeof(ps_type));
         free(path);
-        if (ret < 0)
+        if (ret < 0) {
             LOGE("Failed to read /sys/%s/type\n", uevent->path);
             goto error;
+        }
     } else {
         strlcpy(ps_type, uevent->ps_type, sizeof(ps_type));
     }
