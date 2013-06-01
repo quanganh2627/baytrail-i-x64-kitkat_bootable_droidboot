@@ -51,21 +51,6 @@
 
 extern int g_disable_fboot_ui;
 
-struct fastboot_cmd {
-	struct fastboot_cmd *next;
-	const char *prefix;
-	unsigned prefix_len;
-	void (*handle) (const char *arg, void *data, unsigned sz);
-};
-
-struct fastboot_var {
-	struct fastboot_var *next;
-	const char *name;
-	const char *value;
-};
-
-static struct fastboot_cmd *cmdlist;
-
 void fastboot_register(const char *prefix,
 		       void (*handle) (const char *arg, void *data,
 				       unsigned sz))
