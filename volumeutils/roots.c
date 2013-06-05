@@ -43,7 +43,7 @@
 #define BLKDISCARD _IO(0x12,119)
 #endif
 
-
+extern int g_disable_wipe;
 int num_volumes = 0;
 Volume* device_volumes = NULL;
 
@@ -334,8 +334,12 @@ int format_volume(const char* volume) {
         return 0;
     }
 
-    if (wipe_volume(volume, BLKDISCARD) < 0)
-        return -1;
+    /*
+     * FIXME: query disk's capabilities
+     */
+    if (!g_disable_wipe)
+        if (wipe_volume(volume, BLKDISCARD) < 0)
+            return -1;
 
     if (strcmp(v->fs_type, "ext4") == 0) {
         int result = make_ext4fs(v->device, v->length, volume, NULL);

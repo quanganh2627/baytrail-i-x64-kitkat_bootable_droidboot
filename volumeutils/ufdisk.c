@@ -29,7 +29,7 @@ to test:
 #endif
 
 #ifndef STORAGE_BASE_PATH
-#define STORAGE_BASE_PATH "/"
+#define STORAGE_BASE_PATH "/dev/block/mmcblk0"
 #endif
 
 /*

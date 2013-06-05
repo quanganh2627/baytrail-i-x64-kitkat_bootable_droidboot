@@ -79,6 +79,13 @@ static int g_auto_partition = 0;
    Enabled by default */
 static int g_mount_partition = 1;
 
+/* Flag to enable/disable wipe feature while erasing
+ * To be used carefully especially for production & care
+ * Should only be used during power-on or engineering
+ * Has to be used on mechanical hard-drives until we query disk's capabilities
+ * */
+int g_disable_wipe = 0;
+
 #ifdef USE_GUI
 
 #define NO_ACTION           -1
@@ -293,6 +300,8 @@ static void parse_cmdline_option(char *name)
 		g_auto_partition = atoi(value);
 	} else if (!strcmp(name, "droidboot.mountpart")) {
 		g_mount_partition = atoi(value);
+	} else if (!strcmp(name, "droidboot.disablewipe")) {
+		g_disable_wipe = atoi(value);
 	} else {
 		pr_error("Unknown parameter %s, ignoring\n", name);
 	}
