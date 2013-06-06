@@ -86,6 +86,13 @@ static int g_mount_partition = 1;
  * */
 int g_disable_wipe = 0;
 
+/*
+ * Flag to disable the display on the screen when processing fastboot command.
+ * displaying the command is very slow on byt-M (4s for getvar version)
+ * this flag is a temporary workaround to have faster/more reliable flash.
+ * */
+int g_disable_fboot_ui = 0;
+
 #ifdef USE_GUI
 
 #define NO_ACTION           -1
@@ -302,6 +309,8 @@ static void parse_cmdline_option(char *name)
 		g_mount_partition = atoi(value);
 	} else if (!strcmp(name, "droidboot.disablewipe")) {
 		g_disable_wipe = atoi(value);
+	} else if (!strcmp(name, "droidboot.disablefbootui")) {
+		g_disable_fboot_ui = atoi(value);
 	} else {
 		pr_error("Unknown parameter %s, ignoring\n", name);
 	}
