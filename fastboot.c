@@ -49,6 +49,8 @@
 #define FILEMODE  S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH
 #define MAGIC_LENGTH 64
 
+extern int g_disable_fboot_ui;
+
 struct fastboot_cmd {
 	struct fastboot_cmd *next;
 	const char *prefix;
@@ -233,15 +235,20 @@ void fastboot_fail(const char *reason)
 	sprintf(buf, RESULT_FAIL_STRING);
 	strncat(buf, reason, TEMP_BUFFER_SIZE - 2 - strlen(RESULT_FAIL_STRING));
 	strcat(buf, ")");
-	ui_msg(ALERT, buf);
-	ui_stop_process_bar();
+
+	if (!g_disable_fboot_ui) {
+		ui_msg(ALERT, buf);
+		ui_stop_process_bar();
+	}
 	fastboot_ack("FAIL", reason);
 }
 
 void fastboot_okay(const char *info)
 {
-	ui_msg(TIPS, "RESULT: OKAY");
-	ui_stop_process_bar();
+	if (!g_disable_fboot_ui) {
+		ui_msg(TIPS, "RESULT: OKAY");
+		ui_stop_process_bar();
+	}
 	fastboot_ack("OKAY", info);
 }
 
@@ -266,7 +273,8 @@ static void cmd_download(const char *arg, void *data, unsigned sz)
 	int r;
 
 	len = strtoul(arg, NULL, 16);
-	ui_print("RECEIVE DATA...\n");
+	if (!g_disable_fboot_ui)
+		ui_print("RECEIVE DATA...\n");
 	pr_debug("fastboot: cmd_download %d bytes\n", len);
 
 	download_size = 0;
@@ -306,7 +314,8 @@ static void fastboot_command_loop(void)
 {
 	struct fastboot_cmd *cmd;
 	int r;
-	ui_print("FASTBOOT CMD WAITING...\n");
+	if (!g_disable_fboot_ui)
+		ui_print("FASTBOOT CMD WAITING...\n");
 	pr_debug("fastboot: processing commands\n");
 
 again:
@@ -323,9 +332,11 @@ again:
 				continue;
 			fastboot_state = STATE_COMMAND;
 			fastboot_in_process = 1;
-			ui_set_screen_state(1);
-			ui_msg(TIPS, "CMD(%s)...", buffer);
-			ui_start_process_bar();
+			if (!g_disable_fboot_ui) {
+				ui_set_screen_state(1);
+				ui_msg(TIPS, "CMD(%s)...", buffer);
+				ui_start_process_bar();
+			}
 			cmd->handle((const char *)buffer + cmd->prefix_len,
 				    (void *)download_base, download_size);
 			fastboot_in_process = 0;
@@ -338,7 +349,8 @@ again:
 
 	}
 	fastboot_state = STATE_OFFLINE;
-	ui_print("FASTBOOT OFFLINE!\n");
+	if (!g_disable_fboot_ui)
+		ui_print("FASTBOOT OFFLINE!\n");
 	pr_warning("fastboot: oops!\n");
 }
 
