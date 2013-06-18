@@ -82,6 +82,12 @@ int installer_handle_cmd(struct fastboot_cmd *cmd, char *buffer)
 
 	if (!strncmp(cmd->prefix, "flash:", sizeof("flash:"))) {
 		file = strchr(buffer, '#');
+
+		if (file == NULL) {
+			pr_error("Invalid data with command\n");
+			return -1;
+		}
+
 		*file = '\0';
 		if ( (fd = open((file + 1), O_RDWR)) == -1)
 			return -1;
