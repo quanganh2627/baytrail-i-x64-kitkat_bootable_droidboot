@@ -56,6 +56,7 @@
 #include "aboot.h"
 #include "droidboot_util.h"
 #include "droidboot_plugin.h"
+#include "droidboot_installer.h"
 #include "droidboot.h"
 #include "fastboot.h"
 #include "droidboot_ui.h"
@@ -311,6 +312,23 @@ static void parse_cmdline_option(char *name)
 		g_disable_wipe = atoi(value);
 	} else if (!strcmp(name, "droidboot.disablefbootui")) {
 		g_disable_fboot_ui = atoi(value);
+	} else if (!strcmp(name, "droidboot.installer_usb")) {
+		strncpy(g_installer_usb_dev, value, BUFSIZ);
+		g_installer_usb_dev[BUFSIZ-1] = '\0';
+	} else if (!strcmp(name, "droidboot.installer_sdcard")) {
+		strncpy(g_installer_sdcard_dev, value, BUFSIZ);
+		g_installer_sdcard_dev[BUFSIZ-1] = '\0';
+	} else if (!strcmp(name, "droidboot.installer_internal")) {
+		strncpy(g_installer_internal_dev, value, BUFSIZ);
+		g_installer_internal_dev[BUFSIZ-1] = '\0';
+	} else if (!strcmp(name, "droidboot.installer_remote")) {
+		strncpy(g_installer_remote_dev, value, BUFSIZ);
+		g_installer_remote_dev[BUFSIZ-1]='\0';
+	} else if (!strcmp(name, "droidboot.use_installer")) {
+		g_use_installer = atoi(value);
+	} else if (!strcmp(name, "droidboot.installer_file")) {
+		strncpy(g_installer_file, value, BUFSIZ);
+		g_installer_file[BUFSIZ-1] = '\0';
 	} else {
 		pr_error("Unknown parameter %s, ignoring\n", name);
 	}
@@ -407,12 +425,23 @@ int main(int argc, char **argv)
 	ui_block_show(TITLE);
 	ui_block_show(INFO);
 	ui_block_show(LOG);
-	pthread_t t;
-	pthread_create(&t, NULL, fastboot_thread, NULL);
+	pthread_t th_fastboot;
+
+	pthread_create(&th_fastboot, NULL, fastboot_thread, NULL);
+#ifdef USE_INSTALLER
+	pthread_t th_installer;
+	if (g_use_installer)
+		pthread_create(&th_installer, NULL, installer_thread, NULL);
+#endif
 
 	//wait for user's choice
 	prompt_and_wait();
 #else
+#ifdef USE_INSTALLER
+	if (g_use_installer)
+		installer_thread(NULL);
+#endif
+
 	fastboot_thread(NULL);
 #endif
 

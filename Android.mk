@@ -9,6 +9,7 @@ LOCAL_SRC_FILES := \
 	aboot.c \
 	fastboot.c \
 	util.c \
+	droidboot_installer.c \
 	droidboot.c
 
 LOCAL_C_INCLUDES += bootable/recovery/mtdutils \
@@ -84,6 +85,10 @@ LOCAL_SRC_FILES += ui.c \
 		charger/charger.c \
 		charger/power.c
 LOCAL_CFLAGS += -DUSE_GUI
+endif
+
+ifeq ($(DROIDBOOT_USE_INSTALLER),true)
+LOCAL_CFLAGS += -DUSE_INSTALLER
 endif
 
 include $(BUILD_EXECUTABLE)
