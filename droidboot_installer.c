@@ -31,7 +31,7 @@ int install_from_device(const char *device,
 	/* initialize device if needed, using provided callback */
 	if(device_init)
 		if ( (ret = device_init(device, 1)) != 0 ) {
-			pr_error("Failed to initialize device '%s'\n");
+			pr_error("Failed to initialize device '%s'\n", device);
 			goto error;
 		}
 
