@@ -49,6 +49,9 @@
 #include "droidboot_ui.h"
 #include "droidboot_util.h"
 
+#include <sparse_format.h>
+#include <sparse/sparse.h>
+
 void die(void)
 {
 	pr_error("droidboot has encountered an unrecoverable problem, exiting!\n");
@@ -153,6 +156,83 @@ out:
 	return ret;
 }
 
+static int simg2img(const char * inC, const char * outC)
+{
+	int in;
+	int out;
+	int ret;
+	struct sparse_file *s;
+
+	out = open(outC, O_WRONLY | O_CREAT | O_TRUNC, 0664);
+	if (out < 0) {
+		pr_error("Cannot open output file %s\n", outC);
+		return -1;
+	}
+
+	in = open(inC, O_RDONLY);
+	if (in < 0) {
+		pr_error("Cannot open input file %s\n", inC);
+		 ret = -1;
+                 goto closeout;
+	}
+
+	s = sparse_file_import(in, true, false);
+	if (!s) {
+		pr_error("Failed to read sparse file\n");
+		ret =-1;
+		goto closein;
+	}
+
+	ret = lseek(out, 0, SEEK_SET);
+	if (ret < 0) {
+		pr_error("Cannot set pointer to offset\n");
+		goto closein;
+	}
+
+
+	ret = sparse_file_write(s, out, false, false, false);
+	if (ret < 0) {
+		pr_error("Cannot write output file\n");
+	}
+	sparse_file_destroy(s);
+
+closein:
+	close(in);
+closeout:
+	close(out);
+        return ret;
+
+}
+
+#define SPARSE_TEMP_FILE "/tmp/sparse.img"
+int named_file_write_ext4_sparse(const char *filename,
+        unsigned char *what, size_t sz)
+{
+	int ret;
+        char * sparseFileName;
+
+	if (strncmp((const char*)what, FASTBOOT_DOWNLOAD_TMP_FILE, sz) == 0) {
+		sparseFileName = FASTBOOT_DOWNLOAD_TMP_FILE;
+	} else {
+		ret = named_file_write(SPARSE_TEMP_FILE, what, sz);
+		if (ret) {
+			pr_error("writing sparse ext4 image to temporary file\n");
+			return -1;
+		}
+		sparseFileName = SPARSE_TEMP_FILE;
+	}
+
+	ret = simg2img(sparseFileName, filename);
+
+	if (ret) {
+		pr_error("writing sparse ext4 image failed\n");
+		return -1;
+	}
+
+	unlink(sparseFileName);
+
+	return 0;
+}
 
 int named_file_write(const char *filename, const unsigned char *what,
 		size_t sz)
