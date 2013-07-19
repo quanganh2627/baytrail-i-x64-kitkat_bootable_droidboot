@@ -85,6 +85,8 @@ LOCAL_SRC_FILES += ui.c \
 		charger/charger.c \
 		charger/power.c
 LOCAL_CFLAGS += -DUSE_GUI
+else
+LOCAL_SRC_FILES += charger/charger_noui.c
 endif
 
 ifeq ($(DROIDBOOT_USE_INSTALLER),true)
