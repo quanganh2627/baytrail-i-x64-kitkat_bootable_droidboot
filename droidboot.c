@@ -50,9 +50,9 @@
 #include <cutils/klog.h>
 #include <cutils/hashmap.h>
 #include <charger/charger.h>
+#include <ufdisk.h>
+#include <roots.h>
 
-#include "volumeutils/ufdisk.h"
-#include "volumeutils/roots.h"
 #include "aboot.h"
 #include "droidboot_util.h"
 #include "droidboot_plugin.h"

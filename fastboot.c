@@ -36,8 +36,8 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <cutils/properties.h>
+#include <roots.h>
 
-#include "volumeutils/roots.h"
 #include "droidboot.h"
 #include "droidboot_ui.h"
 #include "fastboot.h"
