@@ -16,7 +16,9 @@ LOCAL_C_INCLUDES += bootable/recovery/mtdutils \
 		system/extras/ext4_utils \
 		bionic/libc/private \
 		external/zlib \
-		external/libpng
+		external/libpng \
+		system/core/libsparse \
+		system/core/libsparse/include
 
 DROIDBOOT_OTA_UPDATE_FILE ?= /cache/update.zip
 LOCAL_CFLAGS := -DDEVICE_NAME=\"$(TARGET_BOOTLOADER_BOARD_NAME)\" \
@@ -32,7 +34,7 @@ endif
 
 LOCAL_MODULE := droidboot
 LOCAL_MODULE_TAGS := eng
-LOCAL_SHARED_LIBRARIES := liblog libext4_utils libz libcutils
+LOCAL_SHARED_LIBRARIES := liblog libext4_utils libz libcutils libsparse
 LOCAL_STATIC_LIBRARIES += libmtdutils libpng libpixelflinger_static libc libcutils libmtdutils
 LOCAL_STATIC_LIBRARIES += $(TARGET_DROIDBOOT_LIBS) $(TARGET_DROIDBOOT_EXTRA_LIBS) libminzip
 

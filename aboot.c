@@ -46,6 +46,10 @@
 #include <cutils/android_reboot.h>
 #include <cutils/hashmap.h>
 
+/* from ext4_utils for sparse ext4 images */
+#include <sparse_format.h>
+#include <sparse/sparse.h>
+
 #include "volumeutils/roots.h"
 #include "fastboot.h"
 #include "droidboot.h"
@@ -186,13 +190,41 @@ static int cmd_flash_system(void *data, unsigned sz)
 {
 	Volume *v;
 	int ret;
+	FILE * src = NULL;
+	char startOfFile[sizeof(sparse_header_t)];
+	void * imageToTest = NULL;
 
 	if ((v = volume_for_path("/system")) == NULL) {
 		pr_error("Cannot find system volume!\n");
 		return -1;
 	}
+	if (strncmp((const char*)data, FASTBOOT_DOWNLOAD_TMP_FILE, sz) == 0) {
+		src = fopen(FASTBOOT_DOWNLOAD_TMP_FILE, "r");
+		if (src == NULL) {
+			pr_error("could not open download tmp file\n");
+			return -1;
+		}
+		ret = fread(startOfFile, 1, sizeof(sparse_header_t), src);
+		fclose(src);
+		if (ret != sizeof(sparse_header_t)){
+			pr_error("could not read enough bytes from download tmp file\n");
+			return -1;
+		}
+		imageToTest = startOfFile;
 
-	ret = named_file_write_decompress_gzip(v->device, data, sz);
+	} else {
+		imageToTest = data;
+	}
+	if (((sparse_header_t*)imageToTest)->magic == SPARSE_HEADER_MAGIC) {
+		/* If there is enough data to hold the header,
+		* and MAGIC appears in header,
+		* then it is a sparse ext4 image */
+		pr_info("sparse image detected flash sparse package\n");
+		ret = named_file_write_ext4_sparse(v->device, data, sz);
+	} else {
+		pr_info("try to flash gzip\n");
+		ret = named_file_write_decompress_gzip(v->device, data, sz);
+	}
 
 	if (unlink(FASTBOOT_DOWNLOAD_TMP_FILE) != 0) {
 		pr_error("Cannot remove %s\n", FASTBOOT_DOWNLOAD_TMP_FILE);
