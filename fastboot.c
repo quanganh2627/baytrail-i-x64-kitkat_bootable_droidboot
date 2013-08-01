@@ -340,7 +340,7 @@ void fastboot_fail(const char *reason)
 	strcat(buf, ")");
 
 	if (!g_disable_fboot_ui) {
-		ui_msg(ALERT, buf);
+		ui_msg(ALERT, "%s", buf);
 		ui_stop_process_bar();
 	}
 	fastboot_ack("FAIL", reason);
