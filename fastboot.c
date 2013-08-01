@@ -512,31 +512,31 @@ static int open_usb_ffs(void)
 
 	control_fp = open(USB_FFS_ADB_EP0, O_RDWR);
 	if (control_fp < 0) {
-		pr_error("[ %s: cannot open control endpoint: errno=%d]\n", USB_FFS_ADB_EP0, errno);
+		pr_info("[ %s: cannot open control endpoint: errno=%d]\n", USB_FFS_ADB_EP0, errno);
 		goto err;
 	}
 
 	ret = write(control_fp, &descriptors, sizeof(descriptors));
 	if (ret < 0) {
-		pr_error("[ %s: write descriptors failed: errno=%d ]\n", USB_FFS_ADB_EP0, errno);
+		pr_info("[ %s: write descriptors failed: errno=%d ]\n", USB_FFS_ADB_EP0, errno);
 		goto err;
 	}
 
 	ret = write(control_fp, &strings, sizeof(strings));
 	if (ret < 0) {
-		pr_error("[ %s: writing strings failed: errno=%d]\n", USB_FFS_ADB_EP0, errno);
+		pr_info("[ %s: writing strings failed: errno=%d]\n", USB_FFS_ADB_EP0, errno);
 		goto err;
 	}
 
 	usb.read_fp = open(USB_FFS_ADB_OUT, O_RDWR);
 	if (usb.read_fp < 0) {
-		pr_error("[ %s: cannot open bulk-out ep: errno=%d ]\n", USB_FFS_ADB_OUT, errno);
+		pr_info("[ %s: cannot open bulk-out ep: errno=%d ]\n", USB_FFS_ADB_OUT, errno);
 		goto err;
 	}
 
 	usb.write_fp = open(USB_FFS_ADB_IN, O_RDWR);
 	if (usb.write_fp < 0) {
-		pr_error("[ %s: cannot open bulk-in ep: errno=%d ]\n", USB_FFS_ADB_IN, errno);
+		pr_info("[ %s: cannot open bulk-in ep: errno=%d ]\n", USB_FFS_ADB_IN, errno);
 		goto err;
 	}
 
@@ -617,7 +617,6 @@ static void close_usb(void)
 
 static int fastboot_handler(void *arg)
 {
-	int fb_fp = -1;
 	int usb_fd_idx = 0;
 	int tcp_fd_idx = 1;
 	int const nfds = 2;
@@ -647,21 +646,20 @@ static int fastboot_handler(void *arg)
 		}
 
 		if (fds[usb_fd_idx].revents & POLLIN) {
-			fb_fp = fds[usb_fd_idx].fd;
 			fastboot_command_loop();
 			close_usb();
 			fds[usb_fd_idx].fd = -1;
 		}
 
 		if (fds[tcp_fd_idx].revents & POLLIN) {
-			fb_fp = accept(fds[tcp_fd_idx].fd, NULL, NULL);
-			if (fb_fp < 0)
+			usb.read_fp = accept(fds[tcp_fd_idx].fd, NULL, NULL);
+			usb.write_fp = usb.read_fp;
+			if (usb.read_fp < 0)
 				pr_error("Accept failure: %s\n", strerror(errno));
 			else
 				fastboot_command_loop();
-			close(fb_fp);
+			close_usb();
 		}
-		fb_fp = -1;
 	}
 	return 0;
 }
