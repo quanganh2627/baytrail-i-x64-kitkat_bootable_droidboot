@@ -370,8 +370,8 @@ void aboot_register_commands(void)
 	fastboot_publish("kernel", "droidboot");
 	fastboot_publish("droidboot", DROIDBOOT_VERSION);
 
-	flash_cmds = hashmapCreate(8, strhash, strcompare);
-	oem_cmds = hashmapCreate(8, strhash, strcompare);
+	flash_cmds = hashmapCreate(30, strhash, strcompare);
+	oem_cmds = hashmapCreate(30, strhash, strcompare);
 	if (!flash_cmds || !oem_cmds) {
 		pr_error("Memory allocation error\n");
 		die();

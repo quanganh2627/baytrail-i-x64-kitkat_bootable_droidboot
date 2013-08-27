@@ -24,9 +24,10 @@
 #include <ctype.h>
 #include <mtdutils.h>
 #include <mounts.h>
-#include "logd.h"
+#include "libc_logging.h"
 #include "roots.h"
 #include "make_ext4fs.h"
+#include "ext4_utils.h"
 #include "droidboot_ui.h"
 
 #include <sys/types.h>
@@ -34,6 +35,7 @@
 #include <fcntl.h>
 #include <linux/fs.h>
 #include <sys/ioctl.h>
+#include "cutils/properties.h"
 
 #ifndef O_BINARY
 #define O_BINARY 0
@@ -43,7 +45,13 @@
 #define BLKDISCARD _IO(0x12,119)
 #endif
 
-extern int g_disable_wipe;
+/* Flag to set which wipe feature will be use while erasing
+ * To be used carefully especially for production & care
+ * Should only be used during power-on or engineering
+ * Has to be used on mechanical hard-drives until we query disk's capabilities
+ * */
+int g_wipe_flag = WIPE_FALLBACK;
+
 int num_volumes = 0;
 Volume* device_volumes = NULL;
 
@@ -94,13 +102,15 @@ void load_volume_table() {
         if (buffer[i] == '\0' || buffer[i] == '#') continue;
 
         char* original = strdup(buffer);
+        char* device = strtok(buffer+i, " \t\n");
 
-        char* mount_point = strtok(buffer+i, " \t\n");
+
+        char* mount_point = strtok(NULL, " \t\n");
         char* fs_type = strtok(NULL, " \t\n");
-        char* device = strtok(NULL, " \t\n");
         // lines may optionally have a second device, to use if
         // mounting the first one fails.
         char* options = NULL;
+        strtok(NULL, " \t\n");
         char* device2 = strtok(NULL, " \t\n");
         if (device2) {
             if (device2[0] == '/') {
@@ -258,40 +268,10 @@ int ensure_path_unmounted(const char* path) {
     return unmount_mounted_volume(mv);
 }
 
-int wipe_volume(const char *volume, int mode) {
-    u64 range[2];
-    int result = 0;
-    Volume* v = volume_for_path(volume);
-
-    if (v == NULL) {
-        LOGE("unknown volume \"%s\"\n", volume);
-        return -1;
-    }
-
-    LOGI("BLK(%d)DISCARD on %s (size: %lld)\n", mode, v->device, v->length);
-
-    int fd = open(v->device, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0644);
-    if (fd < 0) {
-        LOGE("open failed on %s\n", v->device);
-        return -1;
-    }
-
-    range[0] = 0;
-    range[1] = get_file_size(fd);
-
-    result = ioctl(fd, mode, &range);
-    if (result < 0) {
-        LOGE("BLK(%d)DISCARD failed on %s (size: %lld)\n", mode, v->device, range[1]);
-        result = -1;
-    }
-
-    close(fd);
-
-    return result;
-}
-
 int format_volume(const char* volume) {
     Volume* v = volume_for_path(volume);
+    char value[PROPERTY_VALUE_MAX];
+
     if (v == NULL) {
         LOGE("unknown volume \"%s\"\n", volume);
         return -1;
@@ -334,15 +314,15 @@ int format_volume(const char* volume) {
         return 0;
     }
 
-    /*
-     * FIXME: query disk's capabilities
-     */
-    if (!g_disable_wipe)
-        if (wipe_volume(volume, BLKDISCARD) < 0)
-            return -1;
-
     if (strcmp(v->fs_type, "ext4") == 0) {
-        int result = make_ext4fs(v->device, v->length, volume, NULL);
+        /* get the wipe flag for unsecure, secure, or no wipe */
+        int len = property_get("ro.g_wipe_flag", value, NULL);
+        if (len == 1) {
+            g_wipe_flag = atoi(value);
+        }
+
+        int result = make_ext4fs(v->device, v->length, volume, NULL
+                                    , g_wipe_flag);
         if (result != 0) {
             // If v->length is <= 0 the fs is not created by make_ext4fs.
             LOGE("format_volume: make_extf4fs failed on %s\n", v->device);

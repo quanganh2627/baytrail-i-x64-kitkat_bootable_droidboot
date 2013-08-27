@@ -80,13 +80,6 @@ static int g_auto_partition = 0;
    Enabled by default */
 static int g_mount_partition = 1;
 
-/* Flag to enable/disable wipe feature while erasing
- * To be used carefully especially for production & care
- * Should only be used during power-on or engineering
- * Has to be used on mechanical hard-drives until we query disk's capabilities
- * */
-int g_disable_wipe = 0;
-
 /*
  * Flag to disable the display on the screen when processing fastboot command.
  * displaying the command is very slow on byt-M (4s for getvar version)
@@ -308,8 +301,6 @@ static void parse_cmdline_option(char *name)
 		g_auto_partition = atoi(value);
 	} else if (!strcmp(name, "droidboot.mountpart")) {
 		g_mount_partition = atoi(value);
-	} else if (!strcmp(name, "droidboot.disablewipe")) {
-		g_disable_wipe = atoi(value);
 	} else if (!strcmp(name, "droidboot.disablefbootui")) {
 		g_disable_fboot_ui = atoi(value);
 	} else if (!strcmp(name, "droidboot.installer_usb")) {
