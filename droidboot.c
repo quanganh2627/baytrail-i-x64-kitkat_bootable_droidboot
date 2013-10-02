@@ -153,10 +153,13 @@ void force_shutdown()
 
 	pr_info("[SHTDWN] %s, force shutdown", __func__);
 	if ((fd = open(SYSFS_FORCE_SHUTDOWN, O_WRONLY)) < 0) {
-		write(fd, &c, 1);
+		pr_error("[SHUTDOWN] Open %s error!\n", SYSFS_FORCE_SHUTDOWN);
+	} else {
+                if (write(fd, &c, 1) < 0)
+                        pr_error("[SHUTDOWN] Write %s error!\n", SYSFS_FORCE_SHUTDOWN);
 		close(fd);
-	} else
-		pr_info("[SHUTDOWN] Open %s error!\n", SYSFS_FORCE_SHUTDOWN);
+	}
+
 	sync();
 	reboot(LINUX_REBOOT_CMD_POWER_OFF);
 }
