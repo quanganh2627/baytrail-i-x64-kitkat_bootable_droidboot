@@ -41,8 +41,8 @@
 #include <poll.h>
 #include <linux/usb/ch9.h>
 #include <linux/usb/functionfs.h>
+#include <roots.h>
 
-#include "volumeutils/roots.h"
 #include "droidboot.h"
 #include "droidboot_ui.h"
 #include "fastboot.h"

@@ -4,21 +4,20 @@ include $(CLEAR_VARS)
 ifeq ($(TARGET_USE_DROIDBOOT),true)
 
 LOCAL_SRC_FILES := \
-	volumeutils/roots.c \
-	volumeutils/ufdisk.c \
 	aboot.c \
 	fastboot.c \
 	util.c \
 	droidboot_installer.c \
 	droidboot.c
 
-LOCAL_C_INCLUDES += bootable/recovery/mtdutils \
+LOCAL_C_INCLUDES += system/core/mtdutils \
 		system/extras/ext4_utils \
 		bionic/libc/private \
 		external/zlib \
 		external/libpng \
 		system/core/libsparse \
-		system/core/libsparse/include
+		system/core/libsparse/include \
+		system/core/libvolumeutils
 
 DROIDBOOT_OTA_UPDATE_FILE ?= /cache/update.zip
 LOCAL_CFLAGS := -DDEVICE_NAME=\"$(TARGET_BOOTLOADER_BOARD_NAME)\" \
@@ -35,7 +34,12 @@ endif
 LOCAL_MODULE := droidboot
 LOCAL_MODULE_TAGS := eng
 LOCAL_SHARED_LIBRARIES := liblog libext4_utils libz libcutils libsparse
-LOCAL_STATIC_LIBRARIES += libmtdutils libpng libpixelflinger_static libc libcutils libmtdutils
+ifneq ($(DROIDBOOT_NO_GUI),true)
+LOCAL_STATIC_LIBRARIES += libvolumeutils_ui_static
+else
+LOCAL_STATIC_LIBRARIES += libvolumeutils_static
+endif
+LOCAL_STATIC_LIBRARIES += libmtdutils libpng libpixelflinger_static libc libcutils libmtdutils liblogwrap
 LOCAL_STATIC_LIBRARIES += $(TARGET_DROIDBOOT_LIBS) $(TARGET_DROIDBOOT_EXTRA_LIBS) libminzip
 
 #libpixelflinger_static for x86 is using encoder under hardware/intel/apache-harmony
