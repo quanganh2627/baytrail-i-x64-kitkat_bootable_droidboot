@@ -45,12 +45,12 @@
 #include <unistd.h>
 #include <cutils/android_reboot.h>
 #include <cutils/hashmap.h>
-#include <roots.h>
 
 /* from ext4_utils for sparse ext4 images */
 #include <sparse_format.h>
 #include <sparse/sparse.h>
 
+#include "volumeutils/roots.h"
 #include "fastboot.h"
 #include "droidboot.h"
 #include "droidboot_util.h"
@@ -128,7 +128,7 @@ void cmd_erase(const char *part_name, void *data, unsigned sz)
 	ui_print("ERASE %s...\n", part_name);
 	if (!strcmp(part_name, "userdata"))
 		sprintf(mnt_point, "/data");
-	ret = format_volume(mnt_point, NULL);
+	ret = format_volume(mnt_point);
 	ui_print("ERASE %s\n", ret==0 ? "COMPLETE." : "FAILED!");
 
 	if (ret==0)
