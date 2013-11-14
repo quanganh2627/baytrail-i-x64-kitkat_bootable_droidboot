@@ -25,7 +25,7 @@ endif
 LOCAL_MODULE := droidboot
 LOCAL_MODULE_TAGS := eng
 LOCAL_SHARED_LIBRARIES := liblog libext4_utils libz libcutils
-LOCAL_STATIC_LIBRARIES += libpng libpixelflinger_static
+LOCAL_STATIC_LIBRARIES += libpng libpixelflinger_static libenc
 LOCAL_STATIC_LIBRARIES += $(TARGET_DROIDBOOT_LIBS) $(TARGET_DROIDBOOT_EXTRA_LIBS)
 LOCAL_C_INCLUDES += bootable/recovery \
 		    external/zlib \
