@@ -133,3 +133,6 @@ droidboot-ramdisk: $(DROIDBOOT_RAMDISK)
 .PHONY: droidboot-bootimage
 droidboot-bootimage: $(DROIDBOOT_BOOTIMAGE)
 
+.PHONY: droidbootimage
+droidbootimage: $(DROIDBOOT_BOOTIMAGE)
+
