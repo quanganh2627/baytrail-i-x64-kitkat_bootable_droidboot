@@ -50,9 +50,9 @@
 #include <cutils/klog.h>
 #include <cutils/hashmap.h>
 #include <charger/charger.h>
-#include <roots.h>
-#include <ufdisk.h>
 
+#include "volumeutils/ufdisk.h"
+#include "volumeutils/roots.h"
 #include "aboot.h"
 #include "droidboot_util.h"
 #include "droidboot_plugin.h"
@@ -400,7 +400,6 @@ int main(int argc, char **argv)
 
 	// Create automatically partitions if they do not exist
 	// and if specified in the kernel command line
-
 	if (ufdisk_need_create_partition()) {
 		if(g_auto_partition == 1) {
 			// set the property to allow the partitioning
