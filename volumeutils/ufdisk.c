@@ -320,6 +320,8 @@ char *EMMC_BASEDEVICE;
 #else
 #define EMMC_BASEDEVICE _EMMC_BASEDEVICE
 #endif
+#define MMC_BLOCK_MAJOR 179
+#define BLOCK_EXT_MAJOR 259
 
 int is_emmc(Volume *v)
 {
@@ -335,8 +337,12 @@ int is_emmc(Volume *v)
 	if (memcmp(v->device, EMMC_BASEDEVICE, strlen(EMMC_BASEDEVICE)) != 0)
 		return 0;
 #else
+	struct stat stat_buf;
+	if (stat(v->device, &stat_buf) == -1)
+		return 0;
 
-	if (memcmp(v->device, EMMC_BASEDEVICE, sizeof(EMMC_BASEDEVICE)-1) != 0)
+	if (!S_ISBLK(stat_buf.st_mode) || (major(stat_buf.st_rdev) != MMC_BLOCK_MAJOR &&
+		major(stat_buf.st_rdev) != BLOCK_EXT_MAJOR))
 		return 0;
 #endif
 
