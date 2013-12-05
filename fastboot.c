@@ -709,18 +709,44 @@ static int fastboot_handler(void *arg)
 
 int fastboot_init(unsigned size)
 {
+	unsigned freememsize = getfreememsize()*1024;
+	char* maxdownloadsize;
+
 	pr_verbose("fastboot_init()\n");
+	pr_info("Free Mem size : %d \n", freememsize);
+
+	if (size == 0) {
+		size = freememsize*2/3;
+		pr_info("No sratch size specified in cmdline will use 2/3 of free memory");
+	} else {
+		if (size > freememsize) {
+			pr_error("scratch size of %u bigger than free memory %u "
+				" Unable to continue.\n\n", size, freememsize);
+			fastboot_fail("Requested scratch buffer size is bigger than free memory");
+			die();
+		}
+		if (size > (freememsize*2/3)) {
+			pr_warning("scratch size is %u bigger than 2/3 of free memory %u "
+				"\n", size, freememsize);
+		}
+	}
 	download_max = size;
 	download_base = malloc(size);
 	if (download_base == NULL) {
 		pr_error("scratch malloc of %u failed in fastboot."
 			" Unable to continue.\n\n", size);
+		fastboot_fail("Scratch buffer malloc failed");
 		die();
 	}
 
 	fastboot_register("getvar:", cmd_getvar);
 	fastboot_register("download:", cmd_download);
 	fastboot_publish("version", "0.5");
+	if (asprintf(&maxdownloadsize,"%d", size) == -1) {
+		fastboot_fail("asprintf return error. Unable to continue.");
+		die();
+	}
+	fastboot_publish("max-download-size", maxdownloadsize);
 
 	/* We setup functional settings on USB to declare Fastboot Device */
 	property_set("sys.usb.config", "adb");
