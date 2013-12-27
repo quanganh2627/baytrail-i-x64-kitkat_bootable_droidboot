@@ -191,43 +191,50 @@ static int cmd_flash_system(void *data, unsigned sz)
 	Volume *v;
 	int ret;
 	FILE * src = NULL;
-	char startOfFile[sizeof(sparse_header_t)];
-	void * imageToTest = NULL;
 
 	if ((v = volume_for_path("/system")) == NULL) {
 		pr_error("Cannot find system volume!\n");
 		return -1;
 	}
+	/* Check if data is a buffer or a file */
 	if (strncmp((const char*)data, FASTBOOT_DOWNLOAD_TMP_FILE, sz) == 0) {
+		char startoffile[sizeof(sparse_header_t)];
+
 		src = fopen(FASTBOOT_DOWNLOAD_TMP_FILE, "r");
 		if (src == NULL) {
 			pr_error("could not open download tmp file\n");
 			return -1;
 		}
-		ret = fread(startOfFile, 1, sizeof(sparse_header_t), src);
+		ret = fread(startoffile, 1, sizeof(sparse_header_t), src);
 		fclose(src);
 		if (ret != sizeof(sparse_header_t)){
 			pr_error("could not read enough bytes from download tmp file\n");
 			return -1;
 		}
-		imageToTest = startOfFile;
+
+		if (((sparse_header_t*)startoffile)->magic == SPARSE_HEADER_MAGIC) {
+			/* If there is enough data to hold the header,
+			* and MAGIC appears in header,
+			* then it is a sparse ext4 image */
+			pr_info("sparse image file detected flash sparse package\n");
+			ret = named_file_write_ext4_sparse(v->device, data, sz);
+		} else {
+			pr_info("try to flash gzip\n");
+			ret = named_file_write_decompress_gzip(v->device, data, sz);
+		}
+		if (unlink(FASTBOOT_DOWNLOAD_TMP_FILE) != 0) {
+			pr_error("Cannot remove %s\n", FASTBOOT_DOWNLOAD_TMP_FILE);
+		}
 
 	} else {
-		imageToTest = data;
-	}
-	if (((sparse_header_t*)imageToTest)->magic == SPARSE_HEADER_MAGIC) {
-		/* If there is enough data to hold the header,
-		* and MAGIC appears in header,
-		* then it is a sparse ext4 image */
-		pr_info("sparse image detected flash sparse package\n");
-		ret = named_file_write_ext4_sparse(v->device, data, sz);
-	} else {
-		pr_info("try to flash gzip\n");
-		ret = named_file_write_decompress_gzip(v->device, data, sz);
-	}
-
-	if (unlink(FASTBOOT_DOWNLOAD_TMP_FILE) != 0) {
-		pr_error("Cannot remove %s\n", FASTBOOT_DOWNLOAD_TMP_FILE);
+		if (((sparse_header_t*)data)->magic == SPARSE_HEADER_MAGIC) {
+			pr_info("sparse image data detected flash sparse package\n");
+			ret = write_ext4_sparse(v->device, data, sz);
+		}
+		else {
+			pr_error("data not sparsed unable to flash \n");
+			return -1;
+		}
 	}
 
 	return ret;

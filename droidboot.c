@@ -67,7 +67,7 @@
 #include "register.inc"
 
 /* Default size of memory buffer for image data */
-static int g_scratch_size = 400;
+static int g_scratch_size = 0;
 
 /* Minimum battery % before we do anything */
 static int g_min_battery = 10;

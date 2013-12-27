@@ -7,7 +7,10 @@ int named_file_write_decompress_gzip(const char *filename,
 		unsigned char *what, size_t sz);
 int named_file_write_ext4_sparse(const char *filename,
 		unsigned char *what, size_t sz);
+int write_ext4_sparse(const char *filename,
+		unsigned char *data, size_t sz);
 
+unsigned int getfreememsize(void);
 int kexec_linux(char *basepath);
 int is_valid_blkdev(const char *node);
 /* Attribute specification and -Werror prevents most security shenanigans with
