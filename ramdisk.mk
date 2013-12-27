@@ -22,6 +22,7 @@ droidboot_modules := \
 	libext2_blkid \
 	libext2_uuid \
 	libext2_profile \
+	libselinux \
 	libext4_utils \
 	libsparse \
 	libusbhost \
