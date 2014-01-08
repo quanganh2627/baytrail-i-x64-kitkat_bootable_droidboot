@@ -497,9 +497,16 @@ void import_kernel_cmdline(void (*callback)(char *name))
 #define FREE_MEM_SIZE 	sizeof(FREE_MEM) -1
 unsigned int getfreememsize(void)
 {
-	FILE *f = fopen("/proc/meminfo", "r");
+	FILE *f = NULL;
 	long size = 0;
 	char str[256];
+
+	f = fopen("/proc/meminfo", "r");
+
+	if (f == NULL) {
+		pr_perror("fopen meminfo file");
+		return 0;
+	}
 
 	while (NULL != fgets(str, sizeof(str), f)) {
 		str[sizeof(str)-1] = 0;
