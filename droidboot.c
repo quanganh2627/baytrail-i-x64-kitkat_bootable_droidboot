@@ -368,6 +368,7 @@ int main(int argc, char **argv)
 			break;
 		case CHARGER_PROCEED:
 			pr_info("Battery level is acceptable\n");
+			property_set("sys.usb.config", "none");
 			break;
 		default:
 			pr_error("mysterious return value from charger_run()\n");
