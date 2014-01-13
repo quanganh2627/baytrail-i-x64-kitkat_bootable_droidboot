@@ -1,5 +1,4 @@
 LOCAL_PATH := $(call my-dir)
-
 # TODO It would be nice if we could just specify the modules we actually
 # need and have some mechanism to pull in dependencies instead
 # of explicitly enumerating everything that goes in
@@ -66,9 +65,9 @@ DROIDBOOT_BOOTIMAGE := $(PRODUCT_OUT)/droidboot.img
 
 # Used by Droidboot to know what device the SD card is on for OTA
 ifdef TARGET_RECOVERY_FSTAB
-recovery_fstab := $(TARGET_RECOVERY_FSTAB)
+recovery_fstab_droidboot := $(TARGET_RECOVERY_FSTAB)
 else
-recovery_fstab := $(TARGET_DEVICE_DIR)/recovery.fstab
+recovery_fstab_droidboot := $(LOCAL_PATH)/recovery.fstab
 endif
 
 # NOTE: You'll need to pass g_android.fastboot=1 on the kernel command line
@@ -79,7 +78,7 @@ $(DROIDBOOT_RAMDISK): \
 		$(INSTALLED_RAMDISK_TARGET) \
 		$(INSTALLED_SYSTEMIMAGE) \
 		$(MINIGZIP) \
-		$(recovery_fstab) \
+		$(recovery_fstab_droidboot) \
 		$(droidboot_initrc) \
 		$(DROIDBOOT_HARDWARE_INITRC) \
 		$(droidboot_resources_deps) \
@@ -102,7 +101,7 @@ endif
 ifneq ($(DROIDBOOT_NO_GUI),true)
 	$(hide) $(ACP) -rf $(droidboot_resources_common) $(DROIDBOOT_ROOT_OUT)/
 endif
-	$(hide) $(ACP) -f $(recovery_fstab) $(droidboot_etc_out)/recovery.fstab
+	$(hide) $(ACP) -f $(recovery_fstab_droidboot) $(droidboot_etc_out)/recovery.fstab
 	$(hide) $(call droidboot-copy-files,$(TARGET_OUT),$(droidboot_system_out))
 	$(hide) $(MKBOOTFS) $(DROIDBOOT_ROOT_OUT) | $(MINIGZIP) > $@
 	@echo "Created Droidboot ramdisk: $@"
@@ -136,4 +135,3 @@ droidboot-bootimage: $(DROIDBOOT_BOOTIMAGE)
 
 .PHONY: droidbootimage
 droidbootimage: $(DROIDBOOT_BOOTIMAGE)
-
