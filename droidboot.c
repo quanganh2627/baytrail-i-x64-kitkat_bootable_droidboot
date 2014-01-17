@@ -168,7 +168,7 @@ static void goto_recovery()
 	ui_msg(ALERT, "SWITCH TO RECOVERY FAILED!");
 }
 
-#define BUF_IFWI_SZ			6
+#define BUF_IFWI_SZ			10
 #define BUF_PRODUCT_SZ		10
 #define BUF_SERIALNUM_SZ		20
 extern Hashmap *ui_cmds;
