@@ -68,6 +68,9 @@
 #define LOGI(x...) do { KLOG_INFO("charger", x); } while (0)
 #define LOGV(x...) do { KLOG_DEBUG("charger", x); } while (0)
 
+#define SPID_FMLY_FILE_NAME	"/sys/spid/platform_family_id"
+#define MOOR_PF_ID		"0008"
+
 struct key_state {
     bool pending;
     bool down;
@@ -1040,6 +1043,41 @@ static int get_max_temp(void)
     return max_temp;
 }
 
+static bool is_platform(const char *data)
+{
+    int ret;
+    char spid_val[4];
+    FILE *spid_fd;
+
+    spid_fd = fopen(SPID_FMLY_FILE_NAME, "r");
+    if (spid_fd == NULL) {
+        LOGE("Unable to open file %s\n", SPID_FMLY_FILE_NAME);
+        goto out;
+    }
+
+    ret = fseek(spid_fd, 0, SEEK_SET);
+    if (ret != 0) {
+        LOGE("Unable to set file position %d\n", ret);
+        goto close_spid_fd;
+    }
+
+    ret = fscanf(spid_fd, "%s\n", spid_val);
+    if (ret <= 0) {
+        LOGE("Unable to read file %d\n", ret);
+        goto close_spid_fd;
+    }
+    /* check the platform family id */
+    if (!strcmp(spid_val, data))
+	return true;
+    else
+	return false;
+
+close_spid_fd:
+    fclose(spid_fd);
+out:
+    return false;
+}
+
 static void handle_temperature_state(struct charger *charger)
 {
     int temp, ret;
@@ -1066,12 +1104,17 @@ static void handle_temperature_state(struct charger *charger)
         goto close_temp_fd;
     }
 
-    if (temp >= charger->max_temp) {
-        set_screen_state(1);
-        LOGI("Temperature(%d) is higher than threshold(%d), "
-             "shutting down system.\n", temp, charger->max_temp);
-        charger->state = CHARGER_SHUTDOWN;
-        system("echo 1 > /sys/module/intel_mid_osip/parameters/force_shutdown_occured");
+    /* TODO: This is workaround for BZ: 165821. This will be removed later. */
+    /* For Moorefield-Check platform family id */
+    if (!is_platform(MOOR_PF_ID)) {
+
+	if (temp >= charger->max_temp) {
+            set_screen_state(1);
+            LOGI("Temperature(%d) is higher than threshold(%d), "
+                 "shutting down system.\n", temp, charger->max_temp);
+            charger->state = CHARGER_SHUTDOWN;
+            system("echo 1 > /sys/module/intel_mid_osip/parameters/force_shutdown_occured");
+        }
     }
 
 close_temp_fd:
