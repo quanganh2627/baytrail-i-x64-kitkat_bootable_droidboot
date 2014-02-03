@@ -368,7 +368,6 @@ int main(int argc, char **argv)
 			break;
 		case CHARGER_PROCEED:
 			pr_info("Battery level is acceptable\n");
-			property_set("sys.usb.config", "none");
 			break;
 		default:
 			pr_error("mysterious return value from charger_run()\n");
@@ -395,6 +394,9 @@ int main(int argc, char **argv)
 	}
 	ui_block_show(MSG);
 #endif
+
+	/* Unset previous settings before switching to fastboot */
+	property_set("sys.usb.config", "none");
 
 	ui_show_process(VISIBLE);
 	load_volume_table();
