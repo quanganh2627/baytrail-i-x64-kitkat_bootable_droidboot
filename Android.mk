@@ -10,7 +10,9 @@ LOCAL_SRC_FILES := \
 	fastboot.c \
 	util.c \
 	droidboot_installer.c \
-	droidboot.c
+	droidboot.c \
+	charger/charger.c \
+	minui/events.c
 
 LOCAL_C_INCLUDES += bootable/recovery/mtdutils \
 		system/extras/ext4_utils \
@@ -83,15 +85,13 @@ LOCAL_C_INCLUDES += $(dir $(inc))
 
 ifneq ($(DROIDBOOT_NO_GUI),true)
 LOCAL_SRC_FILES += ui.c \
-		minui/events.c \
 		minui/graphics.c \
 		minui/resources.c \
 		minui/timer.c \
-		charger/charger.c \
-		charger/power.c
+		charger/charger_ui.c \
+		charger/power.c \
+		droidboot_ui.c
 LOCAL_CFLAGS += -DUSE_GUI
-else
-LOCAL_SRC_FILES += charger/charger_noui.c
 endif
 
 ifeq ($(DROIDBOOT_USE_INSTALLER),true)

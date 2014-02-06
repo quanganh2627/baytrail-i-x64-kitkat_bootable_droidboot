@@ -17,9 +17,9 @@
 #ifndef _CHARGER_H_
 #define _CHARGER_H_
 
-#include <stdint.h>
-
 #include <cutils/list.h>
+#include <linux/input.h>
+#include <stdint.h>
 
 #include "minui/minui.h"
 
@@ -42,6 +42,75 @@ enum charger_exit_state {
 #define IPC_WRITE_ALARM_TO_OSNIB 0xC5
 #define ALARM_SET                1
 #define ALARM_CLEAR              0
+
+struct key_state {
+    bool pending;
+    bool down;
+    int64_t timestamp;
+};
+
+struct power_supply {
+    struct listnode list;
+    char name[256];
+    char type[32];
+    bool online;
+    bool valid;
+    char cap_path[PATH_MAX];
+};
+
+struct charger {
+    int64_t next_screen_transition;
+    int64_t next_key_check;
+    int64_t next_pwr_check;
+    int64_t next_cap_check;
+
+    struct key_state keys[KEY_MAX + 1];
+    int uevent_fd;
+
+    struct listnode supplies;
+    int num_supplies;
+    int num_supplies_online;
+
+    struct power_supply *battery;
+
+    int min_charge;
+    int mode;
+    enum charger_exit_state state;
+
+    int max_temp;
+
+    int64_t power_key_ms;
+    int64_t batt_unknown_ms;
+    int64_t unplug_shutdown_ms;
+    int64_t cap_poll_ms;
+};
+
+struct uevent {
+    const char *action;
+    const char *path;
+    const char *subsystem;
+    const char *ps_name;
+    const char *ps_type;
+    const char *ps_online;
+};
+
+#ifdef USE_GUI
+void init_surfaces();
+void clean_surfaces(enum charger_exit_state out_state, int min_charge);
+void init_font_size();
+void kick_animation();
+void reset_animation();
+void update_screen_state(struct charger *charger, int64_t now);
+extern int set_screen_state(int);
+#else
+#define init_surfaces()			do { } while (0)
+#define clean_surfaces(y,z)		do { } while (0)
+#define init_font_size()			do { } while (0)
+#define kick_animation()			do { } while (0)
+#define reset_animation()			do { } while (0)
+#define update_screen_state(x,y)			do { } while (0)
+#define set_screen_state(x)			do { } while (0)
+#endif
 
 /* Begin battery charging animation.
  *
@@ -83,5 +152,6 @@ enum charger_exit_state charger_run(int min_charge, int mode, int power_key_ms,
  * integer value of the read battery level.
  */
 int get_battery_level(void);
+int get_battery_capacity(struct charger *charger);
 
 #endif

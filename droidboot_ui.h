@@ -76,6 +76,7 @@ enum {
         __libc_format_log(ANDROID_LOG_ERROR, LOG_TAG, (format), ##__VA_ARGS__ ); \
     } while (0)
 
+
 //default const UI values.
 #define MAX_COLS		60
 #define MAX_ROWS		34
@@ -120,6 +121,7 @@ enum {
 	PRODUCT_NAME,
 };
 
+
 struct color {
 	unsigned char r;
 	unsigned char g;
@@ -156,6 +158,13 @@ void ui_clear_key_queue();
 void ui_event_init(void);
 void ui_init();
 
+void droidboot_ui_init();
+void droidboot_init_table();
+void droidboot_ui_show_process();
+void droidboot_run_ui();
+
+#define droidboot_run()					droidboot_run_ui()
+
 #else /* !USE_GUI */
 
 #define LOGE(format, ...) \
@@ -167,14 +176,16 @@ void ui_init();
 	__libc_format_log(ANDROID_LOG_ERROR, LOG_TAG, (format), ##__VA_ARGS__ ); \
 	} while (0)
 
-#define ui_set_background(x)			do { } while (0)
 #define ui_start_process_bar()			do { } while (0)
 #define ui_stop_process_bar()			do { } while (0)
-#define ui_show_process(x)				do { } while (0)
 #define ui_set_screen_state(x)			do { } while (0)
 #define ui_print							pr_info
 #define ui_msg(x, format, ...)			pr_info(format, ##__VA_ARGS__);
-#define ui_init()							do { } while (0)
+
+#define droidboot_ui_init()				do { } while (0)
+#define droidboot_init_table()			do { } while (0)
+#define droidboot_ui_show_process()		do { } while (0)
+#define droidboot_run()					droidboot_run_noui()
 
 #endif /* USE_GUI */
 #endif /* _DROIDBOOT_UI_H_ */
