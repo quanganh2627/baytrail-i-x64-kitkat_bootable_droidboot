@@ -707,6 +707,8 @@ static int fastboot_handler(void *arg)
 	return 0;
 }
 
+#define MAX_SCRATCH_SIZE 512*1024*1024
+
 int fastboot_init(unsigned size)
 {
 	unsigned freememsize = getfreememsize()*1024;
@@ -716,8 +718,10 @@ int fastboot_init(unsigned size)
 	pr_info("Free Mem size : %d \n", freememsize);
 
 	if (size == 0) {
-		size = freememsize*2/3;
-		pr_info("No sratch size specified in cmdline will use 2/3 of free memory");
+		size = MIN(MAX_SCRATCH_SIZE, freememsize*2/3);
+		pr_info("No sratch size specified in cmdline will use %u "
+			"(minimum between 2/3 of free memory and MAX_SCRATCH_SIZE=%u",
+			size, MAX_SCRATCH_SIZE);
 	} else {
 		if (size > freememsize) {
 			pr_error("scratch size of %u bigger than free memory %u "

@@ -30,6 +30,7 @@
 #define __APP_FASTBOOT_H
 
 #define FASTBOOT_DOWNLOAD_TMP_FILE "/cache/fastboot.tmp"
+#define MIN(a,b) ((a) < (b) ? (a) : (b))
 
 struct fastboot_cmd {
 	struct fastboot_cmd *next;
