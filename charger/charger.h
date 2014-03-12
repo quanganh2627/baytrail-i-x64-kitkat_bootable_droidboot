@@ -95,11 +95,11 @@ struct uevent {
 };
 
 #ifdef USE_GUI
-void init_surfaces();
+void init_surfaces(void);
 void clean_surfaces(enum charger_exit_state out_state, int min_charge);
-void init_font_size();
-void kick_animation();
-void reset_animation();
+void init_font_size(void);
+void kick_animation(void);
+void reset_animation(void);
 void update_screen_state(struct charger *charger, int64_t now);
 extern int set_screen_state(int);
 #else

@@ -88,12 +88,12 @@ static void clear_screen(void)
     gr_fill(0, 0, gr_fb_width(), gr_fb_height());
 };
 
-void kick_animation()
+void kick_animation(void)
 {
     batt_anim->run = true;
 }
 
-void reset_animation()
+void reset_animation(void)
 {
     batt_anim->cur_cycle = 0;
     batt_anim->cur_frame = 0;
@@ -139,7 +139,7 @@ static int draw_surface_centered(gr_surface surface)
     return y + h;
 }
 
-static void draw_unknown()
+static void draw_unknown(void)
 {
     int y;
     if (surf_unknown) {
@@ -151,7 +151,7 @@ static void draw_unknown()
     }
 }
 
-static void draw_battery()
+static void draw_battery(void)
 {
     struct frame *frame = &batt_anim->frames[batt_anim->cur_frame];
 
@@ -163,7 +163,7 @@ static void draw_battery()
     }
 }
 
-static void redraw_screen()
+static void redraw_screen(void)
 {
     clear_screen();
 
@@ -185,7 +185,7 @@ void update_screen_state(struct charger *charger, int64_t now)
 
     /* animation is over, blank screen and leave */
     if (batt_anim->cur_cycle == batt_anim->num_cycles) {
-        reset_animation(charger);
+        reset_animation();
         charger->next_screen_transition = -1;
         gr_fb_blank(true);
         LOGV("[%lld] animation done\n", now);
@@ -282,18 +282,18 @@ void update_screen_state(struct charger *charger, int64_t now)
     }
 }
 
-static void free_surfaces()
+static void free_surfaces(void)
 {
     for ( ; batt_anim->allocated_frames > 0; batt_anim->allocated_frames--)
         res_free_surface(batt_anim->frames[batt_anim->allocated_frames - 1].surface);
 }
 
-void init_font_size()
+void init_font_size(void)
 {
     gr_font_size(&char_width, &char_height);
 }
 
-void init_surfaces()
+void init_surfaces(void)
 {
     int ret, i;
 
@@ -322,6 +322,6 @@ void clean_surfaces(enum charger_exit_state out_state, int min_charge)
 {
     if (out_state == CHARGER_PROCEED && min_charge)
         gr_fb_blank(false);
-    free_surfaces(batt_anim);
+    free_surfaces();
 }
 
