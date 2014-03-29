@@ -61,14 +61,17 @@ char g_installer_internal_dev[BUFSIZ];
 /* remote device base name for installer, i.e nfs, tftp */
 char g_installer_remote_dev[BUFSIZ];
 
+/* Default filename for installer file */
+#define DEFAULT_INSTALLER_FILENAME "installer.cmd"
+
 /* filename for installer, this file contains all the commands
  * to be executed
- * i.e installer.cmd
  */
 char g_installer_file[BUFSIZ];
 
 
 int install_from_device(const char *device, const char *fs_type,
+		char *installer_file,
 		int (*device_init) (const char *, int));
 
 int installer_handle_cmd(struct fastboot_cmd *cmd, char *buffer);

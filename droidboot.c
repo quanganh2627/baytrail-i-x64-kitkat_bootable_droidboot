@@ -137,6 +137,7 @@ int main(int argc, char **argv)
 	freopen("/dev/console", "a", stderr); setbuf(stderr, NULL);
 
 	pr_info(" -- Droidboot %s for %s --\n", DROIDBOOT_VERSION, DEVICE_NAME);
+	strncpy(g_installer_file, DEFAULT_INSTALLER_FILENAME, BUFSIZ);
 	import_kernel_cmdline(parse_cmdline_option);
 
 	aboot_register_commands();

@@ -16,8 +16,11 @@
 
 #include "droidboot_installer.h"
 
+static const char *INSTALLER_MOUNT_POINT = "/installer";
+
 int install_from_device(const char *device,
 		const char *fs_type,
+		char *installer_file,
 		int (*device_init) (const char *, int))
 {
 	int ret = -1;
@@ -37,25 +40,26 @@ int install_from_device(const char *device,
 
 	pr_info("Trying to install using device '%s'\n", device);
 
-	mkdir("/installer/", 0600);
+	mkdir(INSTALLER_MOUNT_POINT, 0600);
 
-	if ( (ret = mount(device, "/installer", fs_type, 0, NULL)) < 0) {
+	if ( (ret = mount(device, INSTALLER_MOUNT_POINT,
+			  fs_type, 0, NULL)) < 0) {
 		pr_error("Failed to mount device '%s' "
 				"as installer partition using fs_type "
 				"'%s'\n", device, fs_type);
 		goto error;
 	}
 
-	if ( (ret = stat("/installer/installer.cmd", &sb)) == -1) {
-		pr_error("Failed to stat installer.cmd file on "
-				"device '%s'\n", device);
+	if ( (ret = stat(installer_file, &sb)) == -1) {
+		pr_error("Failed to stat %s file on device '%s'\n",
+			 g_installer_file, device);
 		ret = -1;
 		goto error;
 	}
 
 	if (!sb.st_size) {
-		pr_error("installer.cmd file is empty "
-				"device '%s'\n", device);
+		pr_error("%s file is empty device '%s'\n",
+			 g_installer_file, device);
 		ret = -1;
 		goto error;
 	}
@@ -120,7 +124,7 @@ int installer_handle_cmd(struct fastboot_cmd *cmd, char *buffer)
 	return 0;
 }
 
-void installer_install()
+void installer_install(char *installer_file)
 {
 	FILE *fp = NULL;
 	char buffer[BUFSIZ];
@@ -128,9 +132,8 @@ void installer_install()
 
 	pr_error("Valid installer medium found.\n");
 
-	if (! (fp = fopen("/installer/installer.cmd", "r"))) {
-		pr_error("Failed to open "
-				" /installer/installer.cmd file");
+	if (! (fp = fopen(installer_file, "r"))) {
+		pr_error("Failed to open %s file", installer_file);
 		return;
 	}
 
@@ -152,30 +155,40 @@ void installer_install()
 
 void *installer_thread(void *arg)
 {
+	char *installer_file;
 
 	pr_info("Installer procedure started.");
 
-	if (!install_from_device(g_installer_remote_dev, "nfs", NULL))
+	if (asprintf(&installer_file, "%s/%s",
+		     INSTALLER_MOUNT_POINT, g_installer_file) == -1) {
+		pr_error("Unable to build the installer command file path\n");
+		return NULL;
+	}
+
+	if (!install_from_device(g_installer_remote_dev, "nfs", installer_file, NULL))
 		goto installer_found;
 
-	if (!install_from_device(g_installer_usb_dev, "vfat", NULL))
+	if (!install_from_device(g_installer_usb_dev, "vfat", installer_file, NULL))
 		goto installer_found;
 
-	if (!install_from_device(g_installer_sdcard_dev, "vfat", NULL))
+	if (!install_from_device(g_installer_sdcard_dev, "vfat", installer_file, NULL))
 		goto installer_found;
 
-	if (!install_from_device(g_installer_internal_dev, "vfat", NULL))
+	if (!install_from_device(g_installer_internal_dev, "vfat", installer_file, NULL))
 		goto installer_found;
 
 	pr_error("No valid installer medium found.\n");
-	return NULL;
+	goto out;
 
 installer_found:
 
-	installer_install();
+	installer_install(installer_file);
 
 	if (umount("/installer") < 0) {
 		pr_error("Failed to umount /installer\n");
 	}
+
+out:
+	free(installer_file);
 	return NULL;
 }
