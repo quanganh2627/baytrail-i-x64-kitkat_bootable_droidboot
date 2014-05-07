@@ -41,7 +41,7 @@ ifeq ($(BOARD_HAVE_MODEM), true)
 LOCAL_SHARED_LIBRARIES += libicuuc
 endif
 LOCAL_STATIC_LIBRARIES += libmtdutils libpng libpixelflinger_static libc libmtdutils
-LOCAL_STATIC_LIBRARIES += $(TARGET_DROIDBOOT_LIBS) $(TARGET_DROIDBOOT_EXTRA_LIBS) libminzip
+LOCAL_STATIC_LIBRARIES += $(TARGET_DROIDBOOT_LIBS) $(TARGET_DROIDBOOT_EXTRA_LIBS) libminzip libselinux
 
 #libpixelflinger_static for x86 is using encoder under hardware/intel/apache-harmony
 ifeq ($(TARGET_ARCH),x86)
