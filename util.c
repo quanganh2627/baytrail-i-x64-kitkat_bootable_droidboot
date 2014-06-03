@@ -281,15 +281,16 @@ int named_file_write(const char *filename, const unsigned char *what,
 int write_ext4_sparse(const char *filename, unsigned char *data, size_t sz) {
 	sparse_header_t *sparse_header;
 	chunk_header_t *chunk_header;
-	FILE *dest = NULL;
+	int dest;
 	unsigned int chunk;
-	unsigned int chunk_data_sz;
+	unsigned long chunk_data_sz;
+	long position;
 	uint32_t total_blocks = 0;
 	int ret = 0;
 
-	dest = fopen(filename, "w");
-	if (!dest) {
-		pr_error("fopen %s fail\n", filename);
+	dest = open(filename, O_RDWR);
+	if (dest == -1) {
+		pr_error("open %s fail : %s\n", filename, strerror(errno));
 		return -1;
 	}
 
@@ -324,8 +325,8 @@ int write_ext4_sparse(const char *filename, unsigned char *data, size_t sz) {
 					goto exit;
 				}
 
-				if (fwrite(data, 1, chunk_data_sz, dest) != chunk_data_sz || ferror(dest)) {
-					pr_perror("fwrite failure for chunk type Raw\n");
+				if (write(dest, data, chunk_data_sz) != (long)chunk_data_sz) {
+					pr_perror("write failure for chunk type Raw\n");
 					ret = -1;
 					goto exit;
 				}
@@ -336,11 +337,10 @@ int write_ext4_sparse(const char *filename, unsigned char *data, size_t sz) {
 
 			case CHUNK_TYPE_DONT_CARE:
 				total_blocks += chunk_header->chunk_sz;
-				if (fseek(dest, chunk_data_sz, SEEK_CUR) < 0) {
-					if ((chunk_data_sz + ftell(dest)) != (sparse_header->total_blks * sparse_header->blk_sz)) {
-						pr_perror("Bogus chunk size for chunk type Don't care\n");
-						ret = -1;
-					}
+				if (((position = lseek64(dest, chunk_data_sz, SEEK_CUR)) < 0) &&
+					(position != (long)(total_blocks * sparse_header->blk_sz))) {
+					perror("Bogus chunk size for chunk type Don't care\n ");
+					ret = -1;
 					goto exit;
 				}
 				break;
@@ -365,10 +365,9 @@ int write_ext4_sparse(const char *filename, unsigned char *data, size_t sz) {
 		pr_perror("Sparse image write failure\n");
 		ret = -1;
 	}
+
 exit:
-	if (dest) {
-		fclose (dest);
-	}
+	close (dest);
 	return ret;
 }
 
