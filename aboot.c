@@ -236,6 +236,51 @@ err:
 	return -1;
 }
 
+
+static const char *var_partition_size(const char *part_name)
+{
+	static char var_value[19];
+	unsigned long long size;
+	int fd = 0;
+
+	Volume *v = get_part_volume(part_name);
+	if (!v) {
+		pr_error("Unable to get volume for %s\n", part_name);
+		goto fail;
+	}
+
+	fd = open(v->device, O_WRONLY | O_TRUNC, 0644);
+	if (fd == -1) {
+		pr_error("%s open failed\n", v->device);
+		goto fail;
+	}
+
+	if (ioctl(fd, BLKGETSIZE64, &size) == -1) {
+		pr_error("Unable to get %s block device\n", v->device);
+		goto fail;
+	}
+
+	if (sprintf(var_value, "0x%016llx", size) < 0)
+		goto fail;
+
+	close(fd);
+	return var_value;
+
+fail:
+	if (fd)
+		close(fd);
+	return NULL;
+}
+
+static const char *var_partition_type(const char *part_name)
+{
+	Volume *v = get_part_volume(part_name);
+	if (!v)
+		pr_error("Unable to get volume for %s\n", part_name);
+
+	return v ? v->fs_type : NULL;
+}
+
 static int cmd_flash_system(void *data, unsigned sz)
 {
 	Volume *v;
@@ -423,9 +468,12 @@ void aboot_register_commands(void)
 	fastboot_register("flash:", cmd_flash);
 	fastboot_register("continue", cmd_reboot);
 
-	fastboot_publish("product", DEVICE_NAME);
-	fastboot_publish("kernel", "droidboot");
-	fastboot_publish("droidboot", DROIDBOOT_VERSION);
+	fastboot_publish("product", DEVICE_NAME, NULL);
+	fastboot_publish("kernel", "droidboot", NULL);
+	fastboot_publish("droidboot", DROIDBOOT_VERSION, NULL);
+
+	fastboot_publish("partition-size", NULL, var_partition_size);
+	fastboot_publish("partition-type", NULL, var_partition_type);
 
 	flash_cmds = hashmapCreate(30, strhash, strcompare);
 	oem_cmds = hashmapCreate(30, strhash, strcompare);

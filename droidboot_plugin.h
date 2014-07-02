@@ -36,7 +36,8 @@ int aboot_register_flash_cmd(char *key, flash_func callback);
 int aboot_register_oem_cmd(char *key, oem_func callback);
 
 /* publish a variable readable by the built-in getvar command */
-void fastboot_publish(const char *name, const char *value);
+void fastboot_publish(const char *name, const char *value,
+		      const char *(*fun)(const char *));
 
 #endif
 
