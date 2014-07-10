@@ -101,3 +101,88 @@ endif
 include $(BUILD_EXECUTABLE)
 
 endif # TARGET_USE_DROIDBOOT
+
+# fparts.txt
+include $(CLEAR_VARS)
+LOCAL_MODULE := fparts.txt
+LOCAL_MODULE_TAGS := optional
+LOCAL_MODULE_CLASS := EXECUTABLE
+LOCAL_MODULE_PATH := $(TARGET_OUT)/bin/fpt-tools-package
+LOCAL_SRC_FILES := fpt-tools-package/fparts.txt
+include $(BUILD_PREBUILT)
+
+# FPT
+include $(CLEAR_VARS)
+LOCAL_MODULE := FPT
+LOCAL_MODULE_TAGS := optional
+LOCAL_MODULE_CLASS := EXECUTABLE
+LOCAL_MODULE_PATH := $(TARGET_OUT)/bin/fpt-tools-package
+LOCAL_SRC_FILES := fpt-tools-package/FPT
+include $(BUILD_PREBUILT)
+
+
+
+# FWUpdLcl
+include $(CLEAR_VARS)
+LOCAL_MODULE := FWUpdLcl
+LOCAL_MODULE_TAGS := optional
+LOCAL_MODULE_CLASS := EXECUTABLE
+LOCAL_MODULE_PATH := $(TARGET_OUT)/bin/fpt-tools-package
+LOCAL_SRC_FILES := fpt-tools-package/FWUpdLcl
+include $(BUILD_PREBUILT)
+
+
+
+# TXEInfo
+include $(CLEAR_VARS)
+LOCAL_MODULE := TXEInfo
+LOCAL_MODULE_TAGS := optional
+LOCAL_MODULE_CLASS := EXECUTABLE
+LOCAL_MODULE_PATH := $(TARGET_OUT)/bin/fpt-tools-package
+LOCAL_SRC_FILES := fpt-tools-package/TXEInfo
+include $(BUILD_PREBUILT)
+
+
+
+
+# TXEI_SEC_TOOLS
+include $(CLEAR_VARS)
+LOCAL_MODULE := TXEI_SEC_TOOLS
+LOCAL_MODULE_TAGS := eng
+LOCAL_MODULE_CLASS := EXECUTABLE
+LOCAL_MODULE_PATH := $(TARGET_OUT)/bin
+LOCAL_SRC_FILES := fpt-tools-package/TXEI_SEC_TOOLS
+include $(BUILD_PREBUILT)
+
+
+# TXEManuf
+include $(CLEAR_VARS)
+LOCAL_MODULE := TXEManuf
+LOCAL_MODULE_TAGS := optional
+LOCAL_MODULE_CLASS := EXECUTABLE
+LOCAL_MODULE_PATH := $(TARGET_OUT)/bin/fpt-tools-package
+LOCAL_SRC_FILES := fpt-tools-package/TXEManuf
+include $(BUILD_PREBUILT)
+
+
+# TXEManuf.cfg
+include $(CLEAR_VARS)
+LOCAL_MODULE := TXEManuf.cfg
+LOCAL_MODULE_TAGS := optional
+LOCAL_MODULE_CLASS := EXECUTABLE
+LOCAL_MODULE_PATH := $(TARGET_OUT)/bin/fpt-tools-package
+LOCAL_SRC_FILES := fpt-tools-package/TXEManuf.cfg
+include $(BUILD_PREBUILT)
+
+
+
+# vsccommn.bin
+include $(CLEAR_VARS)
+LOCAL_MODULE := vsccommn.bin
+LOCAL_MODULE_TAGS := optional
+LOCAL_MODULE_CLASS := EXECUTABLE
+LOCAL_MODULE_PATH := $(TARGET_OUT)/bin/fpt-tools-package
+LOCAL_SRC_FILES := fpt-tools-package/vsccommn.bin
+include $(BUILD_PREBUILT)
+
+

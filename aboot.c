@@ -70,10 +70,99 @@ Hashmap *oem_cmds;
 #ifdef USE_GUI
 Hashmap *ui_cmds;
 #endif
+static int isCatCommand;
 
 static bool strcompare(void *keyA, void *keyB)
 {
 	return !strcmp(keyA, keyB);
+}
+
+//mei add
+static int cmd_flash_txefileset(void *data, unsigned sz) {
+	Volume *v;
+
+        if ((v = volume_for_path("/logs")) == NULL) {
+                pr_error("Cannot find logs volume!\n");
+                return -1;
+        }
+	char * buf = (char*)data;
+	FILE* pFile;  
+    	pFile = fopen("/logs/tmp" , "w+");
+	if(!pFile) {
+		
+		ui_print("Failed to open /logs/tmp\n");
+                return -1;
+
+	}  
+    	fwrite(buf , 1 , sz, pFile);  
+    	fclose(pFile);
+	return 0;  
+  
+
+}
+
+static int cmd_oem_txe(int argc, char **argv) {
+	FILE   *stream;
+	char   buf[102400];
+	if(argc < 2 || !argv[1]) {
+		ui_print("Command parameters are required\n");
+		return -1;
+	}
+	memset(buf, '\0', sizeof(buf));
+	char tmpStr[200];
+	memset(tmpStr, '\0', sizeof(tmpStr));
+	int i;
+	strcpy(tmpStr, argv[1]);
+	isCatCommand = 0;
+	if(!memcmp(tmpStr, "cat", 3)) {
+		isCatCommand = 1;
+	}
+	for(i = 3; i <= argc; i++) {
+		strcat(tmpStr, " ");
+		char tmpStr2[100];
+	       	memset(tmpStr2, '\0', sizeof(tmpStr2));
+  		strcpy(tmpStr2, argv[i-1]);
+		strcat(tmpStr, tmpStr2);
+	}
+	stream = popen(tmpStr , "r");
+	if(!stream) return -1;
+	//fread(buf, sizeof(char), sizeof(buf), stream);
+	while(fgets(buf, 200, stream)!=NULL) {
+		ui_print("%s\n", buf);	
+	}
+	int rc = pclose(stream);  
+	ui_print("shell return result:\n%s",buf);
+	ui_print("argc:%d  tmpStr:%s\n", argc, tmpStr);
+	int status_child = WEXITSTATUS(rc);
+	if(status_child == 0) {
+        	if(strstr(buf, "Passed") || strstr(buf, "Successful")) {
+			ui_print("Passed Successful\n");
+			if(isCatCommand) {
+				fastboot_info(buf);
+			}
+                	return 0;
+        	}
+                if(isCatCommand) {
+                     fastboot_info(buf);
+                }
+		return 0;
+	} else {
+		if(strstr(buf, "Failed") || strstr(buf, "Error") || strstr(buf, "cannot") || strstr(buf, "No such")) {
+        	        ui_print("Failed Error\n");
+			isCatCommand = 0;
+			return -1;
+	        }
+ 		isCatCommand = 0;
+	        return -1;
+	}
+/*	if(strstr(buf, "Passed") || strstr(buf, "Successful")) {
+		return 0;
+	} else if(strstr(buf, "Failed") || strstr(buf, "Error") || strstr(buf, "cannot") || strstr(buf, "No such")) {
+		return -1;
+	}*/
+	//return 0;
+
+
 }
 
 static int strhash(void *key)
@@ -393,5 +482,9 @@ void aboot_register_commands(void)
 
 	aboot_register_flash_cmd("update", cmd_flash_update);
 	aboot_register_flash_cmd("system", cmd_flash_system);
-
+	//mei add
+	aboot_register_flash_cmd("txefileset", cmd_flash_txefileset);
+	aboot_register_oem_cmd("txe", cmd_oem_txe);
+	//mei add end
+	
 }
