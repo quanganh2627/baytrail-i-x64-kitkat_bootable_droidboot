@@ -41,7 +41,6 @@
 #include <stdint.h>
 #include <unistd.h>
 #include <zlib.h>
-#include <linux/ext3_fs.h>
 #include <cutils/android_reboot.h>
 
 #include "fastboot.h"

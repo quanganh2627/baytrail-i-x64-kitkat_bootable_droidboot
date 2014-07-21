@@ -28,7 +28,7 @@
 #include <pthread.h>
 
 #define LOG_TAG "power"
-#include <utils/Log.h>
+#include <droidboot_ui.h>
 
 enum {
     ACQUIRE_PARTIAL_WAKE_LOCK = 0,
