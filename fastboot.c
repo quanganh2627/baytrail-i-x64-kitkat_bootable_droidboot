@@ -68,6 +68,7 @@
 #define MAX_PACKET_SIZE_FS	64
 #define MAX_PACKET_SIZE_HS	512
 #define MAX_PACKET_SIZE_SS	1024
+#define MAX_FASTBOOT_RESPONSE_SIZE	65
 
 #define cpu_to_le16(x)  htole16(x)
 #define cpu_to_le32(x)  htole32(x)
@@ -376,7 +377,7 @@ void fastboot_ack(const char *code, const char *reason)
 
 void fastboot_info(const char *info)
 {
-	char response[65];
+	char response[MAX_FASTBOOT_RESPONSE_SIZE];
 
 	if (fastboot_state != STATE_COMMAND)
 		return;
@@ -411,9 +412,52 @@ void fastboot_okay(const char *info)
 
 static void cmd_getvar(const char *arg, void *data, unsigned sz)
 {
+	struct Volume_list *vol_list;
+
 	pr_debug("fastboot: cmd_getvar %s\n", arg);
-	const char *value = fastboot_getvar(arg);
-	fastboot_okay(value ? value : "");
+	if (strcmp(arg, "all")) {
+		const char *value = fastboot_getvar(arg);
+		fastboot_okay(value ? value : "");
+	} else {
+		char response[MAX_FASTBOOT_RESPONSE_SIZE];
+		char varname[MAX_FASTBOOT_RESPONSE_SIZE];
+		const char *varvalue;
+		struct fastboot_var *var;
+		int num_volumes, i;
+		Volume* device_volumes;
+
+		get_volume_table(&num_volumes, &device_volumes);
+		/* Start from 1 as first volume reported is the tmp fs */
+		for (i=1; i < num_volumes; i++) {
+			if ((snprintf(varname, sizeof(varname), "partition-type:%s",
+				(device_volumes[i].mount_point) + 1)) > MAX_FASTBOOT_RESPONSE_SIZE)
+					goto error;
+			varvalue = fastboot_getvar(varname);
+			if ((snprintf(response, sizeof(response), "%s: %s", varname, varvalue)) >
+				MAX_FASTBOOT_RESPONSE_SIZE)
+					goto error;
+			fastboot_info(response);
+			if ((snprintf(varname, sizeof(varname), "partition-size:%s",
+				(device_volumes[i].mount_point) + 1)) > MAX_FASTBOOT_RESPONSE_SIZE)
+					goto error;
+			varvalue = fastboot_getvar(varname);
+			if ((snprintf(response, sizeof(response), "%s: %s", varname, varvalue)) >
+				MAX_FASTBOOT_RESPONSE_SIZE)
+					goto error;
+			fastboot_info(response);
+		}
+		for (var = varlist; var; var = var->next) {
+			if (var->fun == NULL) {
+				snprintf(response, sizeof(response), "%s: %s", var->name, var->value);
+				fastboot_info(response);
+			}
+		}
+		fastboot_okay("");
+	}
+	return;
+error:
+	fastboot_fail("Unable to get partition info, partition name too long");
+	return;
 }
 
 static void cmd_download(const char *arg, void *data, unsigned sz)
@@ -751,7 +795,8 @@ int fastboot_init(unsigned size)
 
 	fastboot_register("getvar:", cmd_getvar);
 	fastboot_register("download:", cmd_download);
-	fastboot_publish("version", "0.5", NULL);
+	fastboot_publish("version-bootloader", DROIDBOOT_VERSION, NULL);
+
 	if (asprintf(&maxdownloadsize,"%d", size) == -1) {
 		fastboot_fail("asprintf return error. Unable to continue.");
 		die();

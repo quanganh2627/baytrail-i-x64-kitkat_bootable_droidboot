@@ -37,8 +37,14 @@ typedef struct {
     int size_hint;            // Size in MB.
 } Volume;
 
+
+
+
 // Load and parse volume data from /etc/recovery.fstab.
 void load_volume_table();
+
+// get volume data  from /etc/recovery.fstab.
+void get_volume_table(int* num_volumes, Volume** device_volumes);
 
 // Return the Volume* record for this path (or NULL).
 Volume* volume_for_path(const char* path);

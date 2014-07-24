@@ -66,6 +66,11 @@ void load_volume_table() {
     int alloc = 2;
     Volume* tmp_volumes = NULL;
 
+    if (device_volumes != NULL) {
+         LOGW("device_volumes already loaded\n");
+         return;
+    }
+
     device_volumes = (Volume*)malloc(alloc * sizeof(Volume));
 
     if (device_volumes == NULL) {
@@ -156,6 +161,15 @@ void load_volume_table() {
                v->device, v->device2, v->length);
     }
     LOGI("\n");
+}
+
+void get_volume_table(int* num, Volume** volumes)
+{
+    if (device_volumes == NULL)
+         load_volume_table();
+
+    *volumes = device_volumes;
+    *num = num_volumes;
 }
 
 Volume* volume_for_path(const char* path) {
