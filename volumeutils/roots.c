@@ -45,13 +45,6 @@
 #define BLKDISCARD _IO(0x12,119)
 #endif
 
-/* Flag to set which wipe feature will be use while erasing
- * To be used carefully especially for production & care
- * Should only be used during power-on or engineering
- * Has to be used on mechanical hard-drives until we query disk's capabilities
- * */
-int g_wipe_flag = WIPE_FALLBACK;
-
 int num_volumes = 0;
 Volume* device_volumes = NULL;
 
@@ -315,14 +308,7 @@ int format_volume(const char* volume) {
     }
 
     if (strcmp(v->fs_type, "ext4") == 0) {
-        /* get the wipe flag for unsecure, secure, or no wipe */
-        int len = property_get("ro.g_wipe_flag", value, NULL);
-        if (len == 1) {
-            g_wipe_flag = atoi(value);
-        }
-
-        int result = make_ext4fs(v->device, v->length, volume, NULL
-                                    , g_wipe_flag);
+        int result = make_ext4fs(v->device, v->length, volume, NULL);
         if (result != 0) {
             // If v->length is <= 0 the fs is not created by make_ext4fs.
             LOGE("format_volume: make_extf4fs failed on %s\n", v->device);
