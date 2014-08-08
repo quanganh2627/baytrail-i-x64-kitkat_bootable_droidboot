@@ -34,6 +34,7 @@
 #include <cutils/android_reboot.h>
 #include <cutils/klog.h>
 #include <charger/charger.h>
+#include <locale.h>
 
 #include "volumeutils/ufdisk.h"
 #include "volumeutils/roots.h"
@@ -133,6 +134,8 @@ extern int oem_partition_cmd_handler(int argc, char **argv);
 
 int main(int argc, char **argv)
 {
+	setlocale(LC_ALL, "C.UTF-8");
+
 	freopen("/dev/console", "a", stdout); setbuf(stdout, NULL);
 	freopen("/dev/console", "a", stderr); setbuf(stderr, NULL);
 

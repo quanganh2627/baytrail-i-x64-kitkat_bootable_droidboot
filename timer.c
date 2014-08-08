@@ -22,7 +22,8 @@
 #include <unistd.h>
 #include <linux/input.h>
 
-#include "minui.h"
+#include "minui/minui.h"
+#include "timer.h"
 
 struct ui_timer_s
 {
@@ -75,7 +76,6 @@ void ui_start_timer(ui_timer_t *t, int delay_ms)
 	t->delay_ms = delay_ms;
 	restart_timer(t, NULL);
         pthread_mutex_unlock(&gTimerMutex);
-	ev_kick();
 }
 
 /* stop timer */

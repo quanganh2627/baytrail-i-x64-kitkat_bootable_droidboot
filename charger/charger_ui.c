@@ -111,7 +111,7 @@ static int draw_text(const char *str, int x, int y)
         x = (gr_fb_width() - str_len_px) / 2;
     if (y < 0)
         y = (gr_fb_height() - char_height) / 2;
-    gr_text(x, y, str);
+    gr_text(x, y, str, true);
 
     return y + char_height;
 }
@@ -297,7 +297,7 @@ void init_surfaces(void)
 {
     int ret, i;
 
-    ret = res_create_surface("charger/battery_fail", &surf_unknown);
+    ret = res_create_display_surface("charger/battery_fail", &surf_unknown);
     if (ret < 0) {
         LOGE("Cannot load image\n");
         surf_unknown = NULL;
@@ -306,7 +306,7 @@ void init_surfaces(void)
     for (i = 0; i < batt_anim->num_frames; i++) {
         struct frame *frame = &batt_anim->frames[i];
 
-        ret = res_create_surface(frame->name, &frame->surface);
+        ret = res_create_display_surface(frame->name, &frame->surface);
         if (ret < 0) {
             LOGE("Cannot load image %s\n", frame->name);
             free_surfaces();

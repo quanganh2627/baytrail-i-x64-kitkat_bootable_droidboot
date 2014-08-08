@@ -25,6 +25,7 @@
 
 #include "minui/minui.h"
 #include "droidboot_ui.h"
+#include "timer.h"
 
 //color table, BGRA format
 struct color white = {223, 215, 200, 255};
@@ -321,9 +322,9 @@ static void draw_background_locked(gr_surface icon)
 static void draw_text_line(int row, const char* t) {
 	if (t[0] != '\0') {
 		if (fb_height < 1024)
-			gr_text(0, (row+1)*SMALL_SCREEN_CHAR_HEIGHT-1, t);
+			gr_text(0, (row+1)*SMALL_SCREEN_CHAR_HEIGHT-1, t, true);
 		else
-			gr_text(0, (row+1)*CHAR_HEIGHT-1, t);
+			gr_text(0, (row+1)*CHAR_HEIGHT-1, t, true);
 	}
 }
 // Redraw everything on the screen.  Does not flip pages.
@@ -554,7 +555,7 @@ void ui_clear_key_queue()
 }
 
 extern int fastboot_in_process;
-static int input_callback(int fd, short revents, void *data)
+static int input_callback(int fd, uint32_t revents, void *data)
 {
 	struct input_event ev;
 	int ret;
@@ -647,7 +648,7 @@ void ui_init(void)
 
 	int i;
 	for (i = 0; BITMAPS[i].name != NULL; ++i) {
-		int result = res_create_surface(BITMAPS[i].name, BITMAPS[i].surface);
+		int result = res_create_display_surface(BITMAPS[i].name, BITMAPS[i].surface);
 		if (result < 0) {
 			if (result == -2) {
 				printf("Bitmap %s missing header\n", BITMAPS[i].name);

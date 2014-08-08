@@ -432,7 +432,7 @@ static int handle_uevent_fd(struct charger *charger, int fd)
     return ret;
 }
 
-static int uevent_callback(int fd, short revents, void *data)
+static int uevent_callback(int fd, uint32_t revents, void *data)
 {
     struct charger *charger = data;
 
@@ -912,7 +912,7 @@ static void wait_next_event(struct charger *charger, int64_t now)
         ev_dispatch();
 }
 
-static int input_callback(int fd, short revents, void *data)
+static int input_callback(int fd, uint32_t revents, void *data)
 {
     struct charger *charger = data;
     struct input_event ev;
