@@ -20,7 +20,7 @@
 
 #ifndef _DROIDBOOT_UI_H_
 #define _DROIDBOOT_UI_H_
-#include "libc_logging.h"
+#include <log/log.h>
 
 /* logcat support */
 #ifndef LOG_TAG
@@ -31,23 +31,18 @@
 
 #define pr_perror(x)	pr_error("%s failed: %s\n", x, strerror(errno))
 
-#define LOGW(format, ...) \
-    __libc_format_log(ANDROID_LOG_WARN, LOG_TAG, (format), ##__VA_ARGS__ )
-#define LOGI(format, ...) \
-    __libc_format_log(ANDROID_LOG_INFO, LOG_TAG, (format), ##__VA_ARGS__ )
-#define LOGV(format, ...) \
-    __libc_format_log(ANDROID_LOG_VERBOSE, LOG_TAG, (format), ##__VA_ARGS__ )
-#define LOGD(format, ...) \
-    __libc_format_log(ANDROID_LOG_DEBUG, LOG_TAG, (format), ##__VA_ARGS__ )
-#define pr_warning(format, ...) \
-	__libc_format_log(ANDROID_LOG_WARN, LOG_TAG, (format), ##__VA_ARGS__ )
-#define pr_info(format, ...) \
-	__libc_format_log(ANDROID_LOG_INFO, LOG_TAG, (format), ##__VA_ARGS__ )
-#define pr_debug(format, ...) \
-	__libc_format_log(ANDROID_LOG_DEBUG, LOG_TAG, (format), ##__VA_ARGS__ )
+/* while LOGE workaround is still in log.h, avoid duplicate definition */
+#undef LOGE
+
+#define LOGW ALOGW
+#define LOGI ALOGI
+#define LOGV ALOGV
+#define LOGD ALOGD
+#define pr_warning ALOGW
+#define pr_info ALOGI
+#define pr_debug ALOGD
 #if VERBOSE_DEBUG
-#define pr_verbose(format, ...) \
-	__libc_format_log(ANDROID_LOG_VERBOSE, LOG_TAG, (format), ##__VA_ARGS__ )
+#define pr_verbose ALOGV
 #else
 #define pr_verbose(format, ...)				do { } while (0)
 #endif
@@ -68,12 +63,12 @@ enum {
 #define LOGE(format, ...) \
     do { \
         ui_print("E:" format, ##__VA_ARGS__); \
-        __libc_format_log(ANDROID_LOG_ERROR, LOG_TAG, (format), ##__VA_ARGS__ ); \
+	ALOGE(format, ##__VA_ARGS__); \
     } while (0)
 #define pr_error(format, ...) \
     do { \
         ui_print("E:" format, ##__VA_ARGS__); \
-        __libc_format_log(ANDROID_LOG_ERROR, LOG_TAG, (format), ##__VA_ARGS__ ); \
+	ALOGE(format, ##__VA_ARGS__); \
     } while (0)
 
 

@@ -16,7 +16,6 @@ LOCAL_SRC_FILES := \
 
 LOCAL_C_INCLUDES += bootable/recovery/mtdutils \
 		system/extras/ext4_utils \
-		bionic/libc/private \
 		external/zlib \
 		external/libpng \
 		system/core/libsparse \
@@ -35,12 +34,12 @@ LOCAL_CFLAGS += -DRECOVERY_BGRA
 endif
 
 LOCAL_MODULE := droidboot
-LOCAL_MODULE_TAGS := eng
-LOCAL_SHARED_LIBRARIES := liblog libext4_utils libz libcutils libsparse
+LOCAL_MODULE_TAGS := optional
+LOCAL_SHARED_LIBRARIES := liblog libext4_utils libz libcutils libsparse libc
 ifeq ($(BOARD_HAVE_MODEM), true)
 LOCAL_SHARED_LIBRARIES += libicuuc
 endif
-LOCAL_STATIC_LIBRARIES += libmtdutils libpng libpixelflinger_static libc libmtdutils
+LOCAL_STATIC_LIBRARIES += libmtdutils libpng libpixelflinger_static libmtdutils
 LOCAL_STATIC_LIBRARIES += $(TARGET_DROIDBOOT_LIBS) $(TARGET_DROIDBOOT_EXTRA_LIBS) libminzip libselinux
 
 #libpixelflinger_static for x86 is using encoder under hardware/intel/apache-harmony

@@ -24,7 +24,6 @@
 #include <ctype.h>
 #include <mtdutils.h>
 #include <mounts.h>
-#include "libc_logging.h"
 #include "roots.h"
 #include "make_ext4fs.h"
 #include "ext4_utils.h"
