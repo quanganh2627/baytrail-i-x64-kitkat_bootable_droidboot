@@ -175,7 +175,6 @@ int main(int argc, char **argv)
 	/* Unset previous settings before switching to fastboot */
 	property_set("sys.usb.config", "none");
 
-	droidboot_ui_show_process();
 	load_volume_table();
 
 	// Create automatically partitions if they do not exist

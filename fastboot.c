@@ -384,7 +384,6 @@ void fastboot_fail(const char *reason)
 
 	if (!g_disable_fboot_ui) {
 		ui_msg(ALERT, "%s", buf);
-		ui_stop_process_bar();
 	}
 	fastboot_ack("FAIL", reason);
 }
@@ -393,7 +392,6 @@ void fastboot_okay(const char *info)
 {
 	if (!g_disable_fboot_ui) {
 		ui_msg(TIPS, "RESULT: OKAY");
-		ui_stop_process_bar();
 	}
 	fastboot_ack("OKAY", info);
 }
@@ -481,7 +479,6 @@ again:
 			if (!g_disable_fboot_ui) {
 				ui_set_screen_state(1);
 				ui_msg(TIPS, "CMD(%s)...", buffer);
-				ui_start_process_bar();
 			}
 			cmd->handle((const char *)buffer + cmd->prefix_len,
 				    (void *)download_base, download_size);

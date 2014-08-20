@@ -62,8 +62,6 @@ static struct ui_block UI_BLOCK[BLOCK_NUM] = {
 	}
 };
 
-#define PROGRESSBAR_INDETERMINATE_STATES 6
-
 static int fb_width, fb_height;
 static int log_row, log_col, log_top;
 static int menu_items = 0, menu_sel = 0;
@@ -78,7 +76,6 @@ static struct color* menu_sclr = &yellow;
 static gr_surface gCurrentIcon = NULL;
 static pthread_mutex_t gUpdateMutex = PTHREAD_MUTEX_INITIALIZER;
 static gr_surface gBackgroundIcon[NUM_BACKGROUND_ICONS];
-static gr_surface gProgressBarIndeterminate[PROGRESSBAR_INDETERMINATE_STATES];
 static gr_surface gTarget[NUM_TARGETS];
 static int show_process = 0;
 static int process_frame = 0;
@@ -86,12 +83,6 @@ static volatile char process_update = 0;
 
 static const struct { gr_surface* surface; const char *name; } BITMAPS[] = {
     { &gBackgroundIcon[BACKGROUND_ICON_BACKGROUND], "droid_operation" },
-    { &gProgressBarIndeterminate[0],    "indeterminate01" },
-    { &gProgressBarIndeterminate[1],    "indeterminate02" },
-    { &gProgressBarIndeterminate[2],    "indeterminate03" },
-    { &gProgressBarIndeterminate[3],    "indeterminate04" },
-    { &gProgressBarIndeterminate[4],    "indeterminate05" },
-    { &gProgressBarIndeterminate[5],    "indeterminate06" },
     { &gTarget[TARGET_START], "start" },
     { &gTarget[TARGET_POWER_OFF], "power_off" },
     { &gTarget[TARGET_RECOVERY], "recoverymode" },
@@ -112,7 +103,6 @@ static volatile char key_pressed[KEY_MAX + 1];
 
 static ui_timer_t *gScreenSaverTimer;
 static ui_timer_t *gBrightnessTimer;
-static ui_timer_t *gProgressTimer;
 static int gCurBrightness = TARGET_BRIGHTNESS;
 static char gBrightnessPath[255];
 static int gScreenState = 1;
@@ -235,48 +225,6 @@ static void ui_gr_color_fill(struct color* clr)
 	gr_fill(0, 0, fb_width, fb_height);
 }
 
-// Draw the progress bar (if any) on the screen.  Does not flip pages.
-// Should only be called with gUpdateMutex locked.
-static void draw_progress_locked()
-{
-	int width = gr_get_width(gProgressBarIndeterminate[0]);
-	int height = gr_get_height(gProgressBarIndeterminate[0]);
-
-	int dx = (fb_width - width)/2;
-	int dy;
-	if (fb_height < 1024)
-		dy = (UI_BLOCK[MSG].top - 1) * SMALL_SCREEN_CHAR_HEIGHT;
-	else
-		dy = fb_height - 1.5 * CHAR_HEIGHT;
-
-	// Erase behind the progress bar (in case this was a progress-only update)
-	gr_color(0, 0, 0, 255);
-	gr_fill(dx, dy, width, height);
-
-	gr_blit(gProgressBarIndeterminate[process_frame], 0, 0, width, height, dx, dy);
-}
-
-static void update_progress_locked(void)
-{
-	draw_progress_locked();  // Draw only the progress bar
-	gr_flip();
-}
-
-static int progress_timer_cb(void *data)
-{
-	if (process_update) {
-		if (show_process) {
-			pthread_mutex_lock(&gUpdateMutex);
-			update_progress_locked();
-			process_frame = (process_frame + 1) % PROGRESSBAR_INDETERMINATE_STATES;
-			pthread_mutex_unlock(&gUpdateMutex);
-		}
-		return TIMER_AGAIN;
-	} else
-		return TIMER_STOP;
-}
-
-
 // Clear the screen and draw the currently selected background icon (if any).
 // Should only be called with gUpdateMutex locked.
 static void draw_background_locked(gr_surface icon)
@@ -290,8 +238,6 @@ static void draw_background_locked(gr_surface icon)
 		int iconY = (fb_height - iconHeight) / 2;
 		gr_blit(icon, 0, 0, iconWidth, iconHeight, iconX, iconY);
 	}
-	if (show_process)
-		draw_progress_locked();
 }
 
 static int pixel_to_row(int pix)
@@ -386,22 +332,6 @@ void ui_set_background(int icon)
 	gCurrentIcon = gBackgroundIcon[icon];
 	update_screen_locked();
 	pthread_mutex_unlock(&gUpdateMutex);
-}
-
-void ui_start_process_bar()
-{
-	process_update = 1;
-	ui_start_timer(gProgressTimer, 500);
-}
-
-void ui_show_process(int show)
-{
-	show_process = show;
-}
-
-void ui_stop_process_bar()
-{
-	process_update = 0;
 }
 
 void ui_block_init(int type, char **titles, struct color **clrs)
@@ -576,11 +506,6 @@ void ui_init(void)
 	gBrightnessTimer = ui_alloc_timer(set_back_brightness_timer, 1, NULL);
 	if (gBrightnessTimer == NULL) {
 		printf("ERROR on gBrightnessTimer");
-		return;
-	}
-	gProgressTimer = ui_alloc_timer(progress_timer_cb, 1, NULL);
-	if (gProgressTimer == NULL) {
-		printf("ERROR on gProgressTimer");
 		return;
 	}
 

@@ -244,11 +244,6 @@ static void prompt_and_wait()
 	}
 }
 
-void droidboot_ui_show_process()
-{
-	ui_show_process(VISIBLE);
-}
-
 void droidboot_ui_init()
 {
 	ui_init();
