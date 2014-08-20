@@ -37,27 +37,13 @@ struct color yellow = {255, 215, 0, 255};
 struct color brown = {128, 42, 42, 255};
 struct color gray = {150, 150, 150, 255};
 
-static struct color* title_clr[TITLE_MAX];
 static struct color* info_clr[INFO_MAX];
-static struct color* menu_clr[MENU_MAX];
-static struct color* log_clr[LOG_MAX];
 static struct color* msg_clr[MSG_MAX];
 
-static char title[TITLE_MAX][MAX_COLS] = {{'\0'}};
 static char info[INFO_MAX][MAX_COLS] = {{'\0'}};
-static char menu[MENU_MAX][MAX_COLS] = {{'\0'}};
-static char log[LOG_MAX][MAX_COLS] = {{'\0'}};
 static char msg[MSG_MAX][MAX_COLS] = {{'\0'}};
 
 static struct ui_block UI_BLOCK[BLOCK_NUM] = {
-	[TITLE] = {
-		.type       = TITLE,
-		.top        = TITLE_TOP,
-		.rows       = TITLE_MAX,
-		.show       = HIDDEN,
-		.clr_table  = title_clr,
-		.text_table = title,
-	},
 	[INFO] = {
 		.type       = INFO,
 		.top        = INFO_TOP,
@@ -65,22 +51,6 @@ static struct ui_block UI_BLOCK[BLOCK_NUM] = {
 		.show       = HIDDEN,
 		.clr_table  = info_clr,
 		.text_table = info,
-	},
-	[MENU] = {
-		.type       = MENU,
-		.top        = MENU_TOP,
-		.rows       = MENU_MAX,
-		.show       = HIDDEN,
-		.clr_table  = menu_clr,
-		.text_table = menu,
-	},
-	[LOG] = {
-		.type       = LOG,
-		.top        = LOG_TOP,
-		.rows       = LOG_MAX,
-		.show       = HIDDEN,
-		.clr_table  = log_clr,
-		.text_table = log,
 	},
 	[MSG] = {
 		.type       = MSG,
@@ -109,19 +79,24 @@ static gr_surface gCurrentIcon = NULL;
 static pthread_mutex_t gUpdateMutex = PTHREAD_MUTEX_INITIALIZER;
 static gr_surface gBackgroundIcon[NUM_BACKGROUND_ICONS];
 static gr_surface gProgressBarIndeterminate[PROGRESSBAR_INDETERMINATE_STATES];
+static gr_surface gTarget[NUM_TARGETS];
 static int show_process = 0;
 static int process_frame = 0;
 static volatile char process_update = 0;
 
 static const struct { gr_surface* surface; const char *name; } BITMAPS[] = {
-    { &gBackgroundIcon[BACKGROUND_ICON_BACKGROUND], "background" },
+    { &gBackgroundIcon[BACKGROUND_ICON_BACKGROUND], "droid_operation" },
     { &gProgressBarIndeterminate[0],    "indeterminate01" },
     { &gProgressBarIndeterminate[1],    "indeterminate02" },
     { &gProgressBarIndeterminate[2],    "indeterminate03" },
     { &gProgressBarIndeterminate[3],    "indeterminate04" },
     { &gProgressBarIndeterminate[4],    "indeterminate05" },
     { &gProgressBarIndeterminate[5],    "indeterminate06" },
-    { NULL,                             				NULL },
+    { &gTarget[TARGET_START], "start" },
+    { &gTarget[TARGET_POWER_OFF], "power_off" },
+    { &gTarget[TARGET_RECOVERY], "recoverymode" },
+    { &gTarget[TARGET_BOOTLOADER], "restartbootloader" },
+    { NULL, NULL },
 };
 
 // Key event input queue
@@ -142,7 +117,7 @@ static int gCurBrightness = TARGET_BRIGHTNESS;
 static char gBrightnessPath[255];
 static int gScreenState = 1;
 static int gTargetScreenState = 1;
-
+static enum targets target_selected = TARGET_START;
 static int ui_initialized = 0;
 
 /**** screen state, and screen saver   *****/
@@ -319,6 +294,11 @@ static void draw_background_locked(gr_surface icon)
 		draw_progress_locked();
 }
 
+static int pixel_to_row(int pix)
+{
+	return fb_height < 1024 ? pix / SMALL_SCREEN_CHAR_HEIGHT : pix / CHAR_HEIGHT;
+}
+
 static void draw_text_line(int row, const char* t) {
 	if (t[0] != '\0') {
 		if (fb_height < 1024)
@@ -329,23 +309,38 @@ static void draw_text_line(int row, const char* t) {
 }
 // Redraw everything on the screen.  Does not flip pages.
 // Should only be called with gUpdateMutex locked.
+
+#define SIDE_MARGIN 60
+#define TOP_MARGIN 60
+#define TITLE_HEIGHT 60
+#define LINE_SIZE 2
+
+static int draw_surface_locked(gr_surface s, int y)
+{
+	int width = gr_get_width(s);
+	int height = gr_get_height(s);
+	int dx = (fb_width - width)/2;
+	int dy = y;
+
+	gr_blit(s, 0, 0, width, height, dx, dy);
+	return dy + height;
+}
+
 static void draw_screen_locked()
 {
 	int i, j;
+	int y = 60;
 
-	draw_background_locked(gCurrentIcon);
-	ui_gr_color_fill(&black_tr);
+	ui_gr_color_fill(&black);
+	y = draw_surface_locked(gTarget[target_selected], y);
+	y += 60;
+	y = draw_surface_locked(gCurrentIcon, y);
+	UI_BLOCK[INFO].top = pixel_to_row(y);
 	for (i = 0; i < BLOCK_NUM; i++)
 		if (UI_BLOCK[i].show == VISIBLE) {
-			if (i == LOG) {
-				ui_gr_color(UI_BLOCK[i].clr_table[0]);
-				for (j = 0; j < UI_BLOCK[i].rows; j++)
-					draw_text_line(UI_BLOCK[i].top+j, UI_BLOCK[i].text_table[(j+log_top) % UI_BLOCK[i].rows]);
-			} else {
-				for (j = 0; j < UI_BLOCK[i].rows; j++) {
-					ui_gr_color(UI_BLOCK[i].clr_table[j]);
-					draw_text_line(UI_BLOCK[i].top+j, UI_BLOCK[i].text_table[j]);
-				}
+			for (j = 0; j < UI_BLOCK[i].rows; j++) {
+				ui_gr_color(UI_BLOCK[i].clr_table[j]);
+				draw_text_line(UI_BLOCK[i].top+j, UI_BLOCK[i].text_table[j]);
 			}
 		}
 }
@@ -365,7 +360,7 @@ static void set_block_text(int type, char **text)
 		UI_BLOCK[type].text_table[i][0] = '\0';
 	for (i = 0; i < UI_BLOCK[type].rows; i++) {
 		if (text[i] == NULL) break;
-		strncpy(UI_BLOCK[type].text_table[i], text[i], strlen(text[i]) < MAX_COLS-1 ? strlen(text[i]) : MAX_COLS - 1);
+		strncpy(UI_BLOCK[type].text_table[i], text[i], strlen(text[i]) + 1 < MAX_COLS-1 ? strlen(text[i]) + 1 : MAX_COLS - 1);
 	}
 }
 
@@ -452,23 +447,7 @@ void ui_print(const char *fmt, ...)
 
 	pthread_mutex_lock(&gUpdateMutex);
 	char *ptr = buf;
-	for (; *ptr != '\0'; ++ptr) {
-		if (*ptr == '\r') {
-			log[log_row][log_col] = '\0';
-			log_col = 0;
-		}
-		if (*ptr == '\n' || log_col >= MAX_COLS) {
-			log[log_row][log_col] = '\0';
-			log_col = 0;
-			log_row = (log_row + 1) % UI_BLOCK[LOG].rows;
-			if (log_row == log_top) log_top = (log_top + 1) % UI_BLOCK[LOG].rows;
-		}
-		if ((*ptr != '\n') && (*ptr != '\r')) {
-			log[log_row][log_col] = *ptr;
-			log_col++;
-		}
-	}
-	log[log_row][log_col] = '\0';
+	strncpy(msg[0], ptr, MAX_COLS);
 	update_screen_locked();
 	pthread_mutex_unlock(&gUpdateMutex);
 }
@@ -496,36 +475,12 @@ void ui_msg(int type, const char *fmt, ...)
 	pthread_mutex_unlock(&gUpdateMutex);
 }
 
-void ui_start_menu(char** items, int initial_selection)
+void ui_menu_select(enum targets sel)
 {
-	int k=0;
-
-	while (k < MENU_MAX && items[k] != NULL) ++k;
-	menu_items = k;
-	menu_sel = initial_selection;
-	set_block_text(MENU, items);
-	set_block_clr(MENU, menu_dclr);
-	menu_clr[menu_sel] = menu_sclr;
-	update_block(MENU, VISIBLE);
-}
-
-int ui_menu_select(int sel)
-{
-	int old_sel;
-
-	if (UI_BLOCK[MENU].show == VISIBLE) {
-		old_sel = menu_sel;
-		menu_sel = sel;
-		if (menu_sel < 0) menu_sel = 0;
-		if (menu_sel >= menu_items) menu_sel = menu_items-1;
-		sel = menu_sel;
-		if (menu_sel != old_sel){
-			set_block_clr(MENU, menu_dclr);
-			menu_clr[menu_sel] = menu_sclr;
-			update_block(MENU, VISIBLE);
-		}
+	if (target_selected != sel) {
+		target_selected = sel;
+		update_screen_locked();
 	}
-	return sel;
 }
 
 int ui_wait_key()
@@ -597,19 +552,6 @@ void ui_event_init(void)
 	pthread_create(&t, NULL, input_thread, NULL);
 }
 
-static void ui_init_block_attr(void)
-{
-	int max_rows;
-
-	if (fb_height < 1024) {
-		max_rows = fb_height	/ SMALL_SCREEN_CHAR_HEIGHT;
-		UI_BLOCK[LOG].rows = 6;
-	} else
-		max_rows = fb_height / CHAR_HEIGHT;
-	UI_BLOCK[MSG].top = max_rows - MSG_MAX;
-	UI_BLOCK[LOG].top = UI_BLOCK[MSG].top - UI_BLOCK[LOG].rows;
-}
-
 void ui_init(void)
 {
 	gr_init();
@@ -617,12 +559,8 @@ void ui_init(void)
 	fb_width = gr_fb_width();
 	fb_height = gr_fb_height();
 	printf("fb_width = %d, fb_height= %d\n", fb_width, fb_height);
-	ui_init_block_attr();
 
-	set_block_clr(TITLE, title_dclr);
 	set_block_clr(INFO, info_dclr);
-	set_block_clr(MENU, menu_dclr);
-	set_block_clr(LOG, log_dclr);
 	set_block_clr(MSG, msg_dclr);
 
 	log_row = log_col = 0;

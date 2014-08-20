@@ -76,16 +76,10 @@ enum {
 #define MAX_COLS		60
 #define MAX_ROWS		34
 #define BLANK_SIZE		1
-#define TITLE_TOP		0
-#define TITLE_MAX		1
-#define INFO_TOP		(TITLE_TOP + TITLE_MAX)
-#define INFO_MAX		10
-#define MENU_TOP		(INFO_TOP + INFO_MAX + BLANK_SIZE)
-#define MENU_MAX		4
+#define INFO_TOP		0
+#define INFO_MAX		11
 #define MSG_TOP			(MAX_ROWS - MSG_MAX)
 #define MSG_MAX			1
-#define LOG_TOP			(MSG_TOP - LOG_MAX)
-#define LOG_MAX			10
 #define CHAR_WIDTH		10
 #define CHAR_HEIGHT		30
 #define SMALL_SCREEN_CHAR_HEIGHT	18
@@ -101,10 +95,7 @@ enum {
 
 //UI block types
 enum {
-	TITLE,
 	INFO,
-	MENU,
-	LOG,
 	MSG,
 	BLOCK_NUM
 };
@@ -116,6 +107,13 @@ enum {
 	PRODUCT_NAME,
 };
 
+enum targets {
+	TARGET_START,
+	TARGET_POWER_OFF,
+	TARGET_RECOVERY,
+	TARGET_BOOTLOADER,
+	NUM_TARGETS
+};
 
 struct color {
 	unsigned char r;
@@ -146,7 +144,7 @@ void ui_show_process(int show);
 void ui_print(const char *fmt, ...);
 void ui_msg(int type, const char *fmt, ...);
 void ui_start_menu(char** items, int initial_selection);
-int ui_menu_select(int sel);
+void ui_menu_select(enum targets sel);
 int ui_wait_key();
 int ui_key_pressed(int key);
 void ui_clear_key_queue();

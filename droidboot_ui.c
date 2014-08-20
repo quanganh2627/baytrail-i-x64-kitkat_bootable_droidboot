@@ -61,10 +61,10 @@ enum {
 extern struct color white;
 extern struct color green;
 extern struct color brown;
+extern struct color red;
 
 static char **title, **info;
-static struct color* title_clr[] = {&brown, NULL};
-static struct color* info_clr[] = {&white, &white, &white, &white, &white, &white, &green, &green, &green, NULL};
+static struct color* info_clr[INFO_MAX];
 
 static char* menu[] = {
 	"REBOOT DROIDBOOT",
@@ -119,8 +119,6 @@ static void goto_recovery()
 {
 	if (ui_block_visible(INFO) == VISIBLE)
 		table_exit(info, INFO_MAX);
-	if (ui_block_visible(TITLE) == VISIBLE)
-		table_exit(title, TITLE_MAX);
 	sleep(1);
 	android_reboot(ANDROID_RB_RESTART2, 0, "recovery");
 	ui_msg(ALERT, "SWITCH TO RECOVERY FAILED!");
@@ -130,9 +128,16 @@ static void goto_recovery()
 #define BUF_PRODUCT_SZ		80
 #define BUF_SERIALNUM_SZ		20
 extern Hashmap *ui_cmds;
+
+#define fill_info(clr, ...) \
+	{			 \
+	info_clr[i] = clr;	 \
+	snprintf(info[i++], MAX_COLS, __VA_ARGS__); \
+	}
+
 static int get_info()
 {
-	int i;
+	int i = 0;
 	char ifwi[BUF_IFWI_SZ], product[BUF_PRODUCT_SZ], serialnum[BUF_SERIALNUM_SZ];
 	ui_func cb;
 
@@ -148,17 +153,15 @@ static int get_info()
 	cb(PRODUCT_NAME, product, BUF_PRODUCT_SZ);
 	cb(SERIAL_NUM, serialnum, BUF_SERIALNUM_SZ);
 
-	for(i = 0; i < MAX_COLS-1; i++) {
-		info[0][i] = '_';
-		info[5][i] = '_';
-	}
-
-	snprintf(info[1], MAX_COLS, "IFWI VERSION: %s", ifwi);
-	snprintf(info[2], MAX_COLS, "SERIAL_NUM: %s", serialnum);
-	snprintf(info[3], MAX_COLS, "DROIDBOOT VERSION: %s", DROIDBOOT_VERSION);
-	snprintf(info[4], MAX_COLS, "PRODUCT: %s", product);
-	snprintf(info[7], MAX_COLS, "SELECT - VOL_UP OR VOL_DOWN");
-	snprintf(info[8], MAX_COLS, "EXCUTE - POWER OR CAMERA");
+	fill_info(&red, "FASTBOOT MODE");
+	fill_info(&white, "PRODUCT_NAME - %s", product);
+	fill_info(&white, "VARIANT - ?");
+	fill_info(&white, "HW_VERSION - ?");
+	fill_info(&white, "BOOTLOADER VERSION - %s", DROIDBOOT_VERSION);
+	fill_info(&white, "IFWI VERSION - %s", ifwi);
+	fill_info(&white, "SERIAL NUMBER - %s", serialnum);
+	fill_info(&white, "SIGNING - ?");
+	fill_info(&white, "SECURE_BOOT - ?");
 
 	return 0;
 }
@@ -181,28 +184,28 @@ static int device_handle_key(int key_code, int visible)
 	return NO_ACTION;
 }
 
-static int get_menu_selection(char** items, int initial_selection) {
+static enum targets get_menu_selection(enum targets initial_selection) {
 	ui_clear_key_queue();
-	ui_start_menu(items, initial_selection);
-	int selected = initial_selection;
-	int chosen_item = -1;
+	enum targets selected = initial_selection;
+	enum targets chosen_item = NUM_TARGETS;
 
-	while (chosen_item < 0) {
+	while (chosen_item == NUM_TARGETS) {
 		int key = ui_wait_key();
-		int visible = ui_block_visible(MENU);
-		int action = device_handle_key(key, visible);
+		int action = device_handle_key(key, 1);
 
 		if (ui_get_screen_state() == 0)
 			ui_set_screen_state(1);
 		else
 			switch (action) {
 				case HIGHLIGHT_UP:
-					--selected;
-					selected = ui_menu_select(selected);
+					selected--;
+					if (selected < 0)
+						selected = NUM_TARGETS - 1;
+					ui_menu_select(selected);
 					break;
 				case HIGHLIGHT_DOWN:
-					++selected;
-					selected = ui_menu_select(selected);
+					selected = (selected + 1) % NUM_TARGETS;
+					ui_menu_select(selected);
 					break;
 				case SELECT_ITEM:
 					chosen_item = selected;
@@ -217,22 +220,25 @@ static int get_menu_selection(char** items, int initial_selection) {
 static void prompt_and_wait()
 {
 	for (;;) {
-		int chosen_item = get_menu_selection(menu, 0);
+		enum targets chosen_item = get_menu_selection(TARGET_START);
 		switch (chosen_item) {
-			case ITEM_BOOTLOADER:
+			case TARGET_BOOTLOADER:
 				sync();
 				android_reboot(ANDROID_RB_RESTART2, 0, "bootloader");
 				break;
-			case ITEM_RECOVERY:
+			case TARGET_RECOVERY:
 				sync();
 				goto_recovery();
 				break;
-			case ITEM_REBOOT:
+			case TARGET_START:
 				sync();
 				android_reboot(ANDROID_RB_RESTART2, 0, "android");
 				break;
-			case ITEM_POWEROFF:
+			case TARGET_POWER_OFF:
 				force_shutdown();
+				break;
+			case NUM_TARGETS:
+				pr_error("This choice should not be possible!\n");
 				break;
 		}
 	}
@@ -253,13 +259,6 @@ void droidboot_init_table()
 	ui_event_init();
 	ui_set_background(BACKGROUND_ICON_BACKGROUND);
 
-	//Init title table
-	if (table_init(&title, MAX_COLS, TITLE_MAX) == 0) {
-		snprintf(title[0], MAX_COLS, "DROIDBOOT PROVISION OS");
-		ui_block_init(TITLE, (char**)title, title_clr);
-	} else {
-		pr_error("Init title table error!\n");
-	}
 	//Init info table
 	if (table_init(&info, MAX_COLS, INFO_MAX) == 0) {
 		if(get_info() < 0)
@@ -284,9 +283,8 @@ static void *fastboot_thread(void *arg)
 
 void droidboot_run_ui()
 {
-	ui_block_show(TITLE);
 	ui_block_show(INFO);
-	ui_block_show(LOG);
+	ui_block_show(MSG);
 	pthread_t th_fastboot;
 
 	pthread_create(&th_fastboot, NULL, fastboot_thread, NULL);
