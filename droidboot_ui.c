@@ -124,9 +124,12 @@ static void goto_recovery()
 	ui_msg(ALERT, "SWITCH TO RECOVERY FAILED!");
 }
 
-#define BUF_IFWI_SZ			80
+#define BUF_IFWI_SZ		80
 #define BUF_PRODUCT_SZ		80
-#define BUF_SERIALNUM_SZ		20
+#define BUF_VARIANT_SZ		10
+#define BUF_HW_VERSION_SZ	10
+#define BUF_BL_VERSION_SZ	20
+#define BUF_SERIALNUM_SZ	20
 extern Hashmap *ui_cmds;
 
 #define fill_info(clr, ...) \
@@ -139,6 +142,8 @@ static int get_info()
 {
 	int i = 0;
 	char ifwi[BUF_IFWI_SZ], product[BUF_PRODUCT_SZ], serialnum[BUF_SERIALNUM_SZ];
+	char variant[BUF_VARIANT_SZ], hw_version[BUF_HW_VERSION_SZ];
+	char bl_version[BUF_BL_VERSION_SZ];
 	ui_func cb;
 
 	cb = hashmapGet(ui_cmds, UI_GET_SYSTEM_INFO);
@@ -146,18 +151,18 @@ static int get_info()
 		pr_error("Get ui_cmd: %s error!\n", UI_GET_SYSTEM_INFO);
 		return -1;
 	}
-	memset(ifwi, 0, BUF_IFWI_SZ);
-	memset(product, 0, BUF_PRODUCT_SZ);
-	memset(serialnum, 0, BUF_SERIALNUM_SZ);
 	cb(IFWI_VERSION, ifwi, BUF_IFWI_SZ);
 	cb(PRODUCT_NAME, product, BUF_PRODUCT_SZ);
 	cb(SERIAL_NUM, serialnum, BUF_SERIALNUM_SZ);
+	cb(VARIANT, variant, BUF_VARIANT_SZ);
+	cb(HW_VERSION, hw_version, BUF_HW_VERSION_SZ);
+	cb(BOOTLOADER_VERSION, bl_version, BUF_BL_VERSION_SZ);
 
 	fill_info(&red, "FASTBOOT MODE");
 	fill_info(&white, "PRODUCT_NAME - %s", product);
-	fill_info(&white, "VARIANT - ?");
-	fill_info(&white, "HW_VERSION - ?");
-	fill_info(&white, "BOOTLOADER VERSION - %s", DROIDBOOT_VERSION);
+	fill_info(&white, "VARIANT - %s", variant);
+	fill_info(&white, "HW_VERSION - %s", hw_version);
+	fill_info(&white, "BOOTLOADER VERSION - %s", bl_version);
 	fill_info(&white, "IFWI VERSION - %s", ifwi);
 	fill_info(&white, "SERIAL NUMBER - %s", serialnum);
 	fill_info(&white, "SIGNING - ?");
