@@ -423,7 +423,6 @@ void aboot_register_commands(void)
 
 	fastboot_publish("product", DEVICE_NAME, NULL);
 	fastboot_publish("kernel", "droidboot", NULL);
-	fastboot_publish("droidboot", DROIDBOOT_VERSION, NULL);
 
 	fastboot_publish("partition-size", NULL, var_partition_size);
 	fastboot_publish("partition-type", NULL, var_partition_type);
