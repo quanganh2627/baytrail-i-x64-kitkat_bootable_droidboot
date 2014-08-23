@@ -261,6 +261,7 @@ static unsigned download_size;
 static unsigned fastboot_state = STATE_OFFLINE;
 static int tmp_fp = -1;
 
+#define USB_CHUNK_SIZE (1024 * 1024)
 static int usb_read(void *_buf, unsigned len)
 {
 	int r = 0;
@@ -274,7 +275,7 @@ static int usb_read(void *_buf, unsigned len)
 
 	pr_verbose("usb_read %d\n", len);
 	while (len > 0) {
-		xfer = (len > 4096) ? 4096 : len;
+		xfer = (len > USB_CHUNK_SIZE) ? USB_CHUNK_SIZE : len;
 
 		r = read(usb.read_fp, buf, xfer);
 		if (r < 0) {
