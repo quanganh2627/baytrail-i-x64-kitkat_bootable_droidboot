@@ -81,13 +81,13 @@ static int show_process = 0;
 static int process_frame = 0;
 static volatile char process_update = 0;
 
-static const struct { gr_surface* surface; const char *name; } BITMAPS[] = {
-    { &gBackgroundIcon[BACKGROUND_ICON_BACKGROUND], "droid_operation" },
-    { &gTarget[TARGET_START], "start" },
-    { &gTarget[TARGET_POWER_OFF], "power_off" },
-    { &gTarget[TARGET_RECOVERY], "recoverymode" },
-    { &gTarget[TARGET_BOOTLOADER], "restartbootloader" },
-    { NULL, NULL },
+static const struct { gr_surface* surface; const char *name; int screen_h_ratio;} BITMAPS[] = {
+	{ &gBackgroundIcon[BACKGROUND_ICON_BACKGROUND], "droid_operation", 30},
+	{ &gTarget[TARGET_START], "start", 10},
+	{ &gTarget[TARGET_POWER_OFF], "power_off", 10},
+	{ &gTarget[TARGET_RECOVERY], "recoverymode", 10},
+	{ &gTarget[TARGET_BOOTLOADER], "restartbootloader", 10},
+	{ NULL, NULL, 0},
 };
 
 // Key event input queue
@@ -482,6 +482,57 @@ void ui_event_init(void)
 	pthread_create(&t, NULL, input_thread, NULL);
 }
 
+/*
+ * Bilinear interpolation:
+ * f(x,y) = (1/(x2-x1)(y2-y1)) * (
+ *          f(Q11)(x2-x)(y2-y) +
+ *          f(Q21)(x-x1)(y2-y) +
+ *          f(Q12)(x2-x)(y-y1) +
+ *          f(Q22)(x-x1)(y-y1))
+ */
+static void bilinear_scale(unsigned char *s, unsigned char *d, int sx, int sy, int dx, int dy, int depth)
+{
+	double ratio_x = (double)(sx - 1) / dx;
+	double ratio_y = (double)(sy - 1) / dy;
+	int i, j, k;
+	sx *= depth;
+	for (i = 0; i < dy; i++ )
+		for (j = 0; j < dx; j++) {
+			double x = j * ratio_x;
+			double y = i * ratio_y;
+			int x1 = x;
+			int x2 = x1 + 1;
+			int y1 = y;
+			int y2 = y1 + 1;
+			for (k = 0; k < depth; k++) {
+				d[j * depth + i * dx * depth + k] = (1 / ((x2 - x1) * (y2 - y1))) *
+					(s[x1 * depth + y1 * sx + k] * (x2 - x) * (y2 - y) +
+					 s[x2 * depth + y1 * sx + k] * (x - x1) * (y2 - y) +
+					 s[x1 * depth + y2 * sx + k] * (x2 - x) * (y - y1) +
+					 s[x2 * depth + y2 * sx + k] * (x - x1) * (y - y1));
+			}
+		}
+}
+
+static void resize_bitmap(gr_surface *surface, int screen_ratio)
+{
+	gr_surface s = *surface;
+	int h_ratio = fb_height / s->height;
+
+	if (h_ratio == screen_ratio)
+		return;
+
+	gr_surface d = malloc(sizeof(*s));
+	d->height = fb_height * screen_ratio / 100;
+	d->width = s->width * d->height / s->height;
+	d->pixel_bytes = s->pixel_bytes;
+	d->row_bytes = d->width * d->pixel_bytes;
+	d->data = malloc(d->height * d->row_bytes);
+	bilinear_scale(s->data, d->data, s->width, s->height, d->width, d->height, d->pixel_bytes);
+	*surface = d;
+	res_free_surface(s);
+}
+
 void ui_init(void)
 {
 	gr_init();
@@ -520,6 +571,7 @@ void ui_init(void)
 			}
 			*BITMAPS[i].surface = NULL;
 		}
+		resize_bitmap(BITMAPS[i].surface, BITMAPS[i].screen_h_ratio);
 	}
 	pthread_t t;
 	pthread_create(&t, NULL, screen_state_thread, NULL);
