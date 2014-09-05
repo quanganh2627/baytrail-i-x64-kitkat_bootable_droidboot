@@ -118,6 +118,59 @@ int aboot_register_ui_cmd(char *key, ui_func callback)
 }
 #endif
 
+static Volume *get_part_volume(const char *part_name)
+{
+	char mnt_point[FILE_NAME_SIZ];
+
+	if (!part_name)
+		return NULL;
+
+	/* supports fastboot -w who wants to erase userdata */
+	if (!strcmp(part_name, "userdata"))
+		snprintf(mnt_point, FILE_NAME_SIZ, "/%s", "data");
+	else
+		snprintf(mnt_point, FILE_NAME_SIZ, "/%s", part_name);
+
+	return volume_for_path(mnt_point);
+}
+
+static int erase_partition(const char *part_name)
+{
+	int fd = 0;
+	unsigned long long size;
+	Volume *v;
+	int ret = -1;
+
+	v = get_part_volume(part_name);
+	if (!v) {
+		pr_error("Unable to get device for %s\n", part_name);
+		goto out;
+	}
+
+
+	fd = open(v->device, O_WRONLY | O_TRUNC, 0644);
+	if (fd == -1) {
+		pr_error("%s open failed\n", v->device);
+		goto out;
+	}
+
+	if (ioctl(fd, BLKGETSIZE64, &size) == -1) {
+		pr_error("Unable to get %s block device\n", v->device);
+		goto close;
+	}
+
+	unsigned long long range[] = { 0, size };
+	if (ioctl(fd, BLKDISCARD, range) == -1) {
+		pr_error("Unable to erase %s\n", part_name);
+		goto close;
+	}
+	ret = 0;
+close:
+	close(fd);
+out:
+	return ret;
+}
+
 void cmd_erase(const char *part_name, void *data, unsigned sz)
 {
 	char mnt_point[FILE_NAME_SIZ];
