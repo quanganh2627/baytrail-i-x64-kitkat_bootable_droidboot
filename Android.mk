@@ -35,9 +35,6 @@ endif
 LOCAL_MODULE := droidboot
 LOCAL_MODULE_TAGS := optional
 LOCAL_SHARED_LIBRARIES := liblog libext4_utils libz libcutils libsparse libc
-ifeq ($(BOARD_HAVE_MODEM), true)
-LOCAL_SHARED_LIBRARIES += libicuuc
-endif
 LOCAL_STATIC_LIBRARIES += libmtdutils libpng libpixelflinger_static libmtdutils
 LOCAL_STATIC_LIBRARIES += $(TARGET_DROIDBOOT_LIBS) $(TARGET_DROIDBOOT_EXTRA_LIBS) libminzip libselinux
 
