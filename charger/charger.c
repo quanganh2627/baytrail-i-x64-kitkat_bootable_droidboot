@@ -37,6 +37,7 @@
 #include <pthread.h>
 
 #include <cutils/android_reboot.h>
+#include <inttypes.h>
 #include <cutils/klog.h>
 #include <cutils/list.h>
 #include <cutils/misc.h>
@@ -536,12 +537,12 @@ static int set_key_callback(int code, int value, void *data)
     charger->keys[code].down = down;
     charger->keys[code].pending = true;
     if (down) {
-        LOGV("[%lld] key[%d] down\n", now, code);
+        LOGV("[%"PRId64"] key[%d] down\n", now, code);
     } else {
         int64_t duration = now - charger->keys[code].timestamp;
         int64_t secs = duration / 1000;
         int64_t msecs = duration - secs * 1000;
-        LOGV("[%lld] key[%d] up (was down for %lld.%lldsec)\n", now,
+        LOGV("[%"PRId64"] key[%d] up (was down for %"PRId64".%"PRId64"sec)\n", now,
             code, secs, msecs);
     }
 
@@ -591,10 +592,10 @@ static void process_key(struct charger *charger, int code, int64_t now)
             if (!key->down && key->pending) {
                 if (now >= proceed_timeout && charger->power_key_ms >= 0) {
                     if (get_battery_capacity(charger) >= charger->min_charge) {
-                        LOGI("[%lld] power button press+hold, exiting\n", now);
+                        LOGI("[%"PRId64"] power button press+hold, exiting\n", now);
                         charger->state = CHARGER_PROCEED;
                     } else {
-                        LOGI("[%lld] ignore press+hold power, battery level "
+                        LOGI("[%"PRId64"] ignore press+hold power, battery level "
                                 "less than minimum\n", now);
                     }
                 }
@@ -624,10 +625,10 @@ static void handle_power_supply_state(struct charger *charger, int64_t now)
         if (charger->next_pwr_check == -1) {
             set_screen_state(1);
             charger->next_pwr_check = now + charger->unplug_shutdown_ms;
-            LOGI("[%lld] device unplugged: shutting down in %lld (@ %lld)\n",
+            LOGI("[%"PRId64"] device unplugged: shutting down in %"PRId64" (@ %"PRId64")\n",
                  now, charger->unplug_shutdown_ms, charger->next_pwr_check);
         } else if (now >= charger->next_pwr_check) {
-            LOGI("[%lld] shutting down (no online supplies)\n", now);
+            LOGI("[%"PRId64"] shutting down (no online supplies)\n", now);
             /* Subsequent battery level check may change this to CHARGER_PROCEED */
             charger->state = CHARGER_SHUTDOWN;
         } else {
@@ -636,7 +637,7 @@ static void handle_power_supply_state(struct charger *charger, int64_t now)
     } else {
         /* online supply present, reset shutdown timer if set */
         if (charger->next_pwr_check != -1) {
-            LOGI("[%lld] device plugged in: shutdown cancelled\n", now);
+            LOGI("[%"PRId64"] device plugged in: shutdown cancelled\n", now);
             kick_animation();
         }
         charger->next_pwr_check = -1;
@@ -661,11 +662,11 @@ static void handle_capacity_state(struct charger *charger, int64_t now)
 
     charge_pct = get_battery_capacity(charger);
     if (charge_pct >= charger->min_charge) {
-        LOGI("[%lld] battery capacity %d%% >= %d%%, exiting\n", now,
+        LOGI("[%"PRId64"] battery capacity %d%% >= %d%%, exiting\n", now,
                 charge_pct, charger->min_charge);
         charger->state = CHARGER_PROCEED;
     } else
-        LOGV("[%lld] battery capacity %d%% < %d%%\n", now,
+        LOGV("[%"PRId64"] battery capacity %d%% < %d%%\n", now,
                 charge_pct, charger->min_charge);
 
     if (charger->num_supplies_online == 0)
@@ -888,8 +889,8 @@ static void wait_next_event(struct charger *charger, int64_t now)
     int64_t timeout;
     int ret;
 
-    LOGV("[%lld] next screen: %lld next key: %lld next pwr: %lld "
-            "next cap: %lld\n", now, charger->next_screen_transition,
+    LOGV("[%"PRId64"] next screen: %"PRId64" next key: %"PRId64" next pwr: %"PRId64" "
+            "next cap: %"PRId64"\n", now, charger->next_screen_transition,
             charger->next_key_check, charger->next_pwr_check,
             charger->next_cap_check);
 
@@ -906,7 +907,7 @@ static void wait_next_event(struct charger *charger, int64_t now)
         timeout = max(0, next_event - now);
     else
         timeout = -1;
-    LOGV("[%lld] blocking (%lld)\n", now, timeout);
+    LOGV("[%"PRId64"] blocking (%"PRId64")\n", now, timeout);
     ret = ev_wait((int)timeout);
     if (!ret)
         ev_dispatch();
@@ -932,7 +933,7 @@ static enum charger_exit_state charger_event_loop()
     while (true) {
         int64_t now = curr_time_ms();
 
-        LOGV("[%lld] event_loop()\n", now);
+        LOGV("[%"PRId64"] event_loop()\n", now);
         handle_input_state(charger, now);
         handle_power_supply_state(charger, now);
         handle_capacity_state(charger, now);

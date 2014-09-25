@@ -15,7 +15,7 @@
  */
 
 #include <unistd.h>
-
+#include <inttypes.h>
 #include <cutils/klog.h>
 
 #include "minui/minui.h"
@@ -188,7 +188,7 @@ void update_screen_state(struct charger *charger, int64_t now)
         reset_animation();
         charger->next_screen_transition = -1;
         gr_fb_blank(true);
-        LOGV("[%lld] animation done\n", now);
+        LOGV("[%"PRId64"] animation done\n", now);
         if (charger->num_supplies_online != 0)
             set_screen_state(0);
         else {
@@ -210,7 +210,7 @@ void update_screen_state(struct charger *charger, int64_t now)
 
     /* animation starting, set up the animation */
     if (batt_anim->cur_frame == 0) {
-        LOGV("[%lld] animation starting\n", now);
+        LOGV("[%"PRId64"] animation starting\n", now);
         batt_cap = get_battery_capacity(charger);
         if (batt_cap >= 0 && batt_anim->num_frames != 0) {
             int i;
@@ -245,7 +245,7 @@ void update_screen_state(struct charger *charger, int64_t now)
      * the cycle counter and exit
      */
     if (batt_anim->num_frames == 0 || batt_anim->capacity < 0) {
-        LOGV("[%lld] animation missing or unknown battery status\n", now);
+        LOGV("[%"PRId64"] animation missing or unknown battery status\n", now);
         charger->next_screen_transition = now + charger->batt_unknown_ms;
         batt_anim->cur_cycle++;
         return;
