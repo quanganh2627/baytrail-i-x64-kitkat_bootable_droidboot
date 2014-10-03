@@ -43,7 +43,6 @@ struct fastboot_var {
 	struct fastboot_var *next;
 	const char *name;
 	const char *value;
-	const char *(*fun)(const char *);
 };
 
 struct fastboot_cmd *cmdlist;

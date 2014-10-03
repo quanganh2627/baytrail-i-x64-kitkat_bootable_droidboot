@@ -226,15 +226,13 @@ void fastboot_register(const char *prefix,
 
 static struct fastboot_var *varlist;
 
-void fastboot_publish(const char *name, const char *value,
-		      const char *(*fun)(const char *))
+void fastboot_publish(const char *name, const char *value)
 {
 	struct fastboot_var *var;
 	var = malloc(sizeof(*var));
 	if (var) {
 		var->name = name;
 		var->value = value;
-		var->fun = fun;
 		var->next = varlist;
 		varlist = var;
 	}
@@ -243,16 +241,9 @@ void fastboot_publish(const char *name, const char *value,
 const char *fastboot_getvar(const char *name)
 {
 	struct fastboot_var *var;
-	const char *arg;
-	size_t len;
-
-	arg = strstr(name, ":");
-	len = arg ? (size_t)(arg - name) : strlen(name);
-
 	for (var = varlist; var; var = var->next)
-		if (!strncmp(var->name, name, len))
-			return var->fun ? var->fun(arg + 1) : var->value;
-
+		if (!strcmp(name, var->name))
+			return (var->value);
 	return NULL;
 }
 
@@ -408,9 +399,16 @@ void fastboot_okay(const char *info)
 
 static void cmd_getvar(const char *arg, void *data, unsigned sz)
 {
+	struct fastboot_var *var;
+
 	pr_debug("fastboot: cmd_getvar %s\n", arg);
-	const char *value = fastboot_getvar(arg);
-	fastboot_okay(value ? value : "");
+	for (var = varlist; var; var = var->next) {
+		if (!strcmp(var->name, arg)) {
+			fastboot_okay(var->value);
+			return;
+		}
+	}
+	fastboot_okay("");
 }
 
 static void cmd_download(const char *arg, void *data, unsigned sz)
@@ -745,12 +743,12 @@ int fastboot_init(unsigned size)
 
 	fastboot_register("getvar:", cmd_getvar);
 	fastboot_register("download:", cmd_download);
-	fastboot_publish("version", "0.5", NULL);
+	fastboot_publish("version", "0.5");
 	if (asprintf(&maxdownloadsize,"%d", size) == -1) {
 		fastboot_fail("asprintf return error. Unable to continue.");
 		die();
 	}
-	fastboot_publish("max-download-size", maxdownloadsize, NULL);
+	fastboot_publish("max-download-size", maxdownloadsize);
 
 	/* We setup functional settings on USB to declare Fastboot Device */
 	property_set("sys.usb.config", "adb");
