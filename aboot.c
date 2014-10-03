@@ -245,7 +245,7 @@ static void cmd_flash(const char *part_name, void *data, unsigned sz)
 	char path[FILE_NAME_SIZ];
 	int ret = -1;
 	flash_func cb;
-	Volume *v = NULL;
+	Volume *v;
 
 	ui_print("FLASH %s...\n", part_name);
 
@@ -265,10 +265,7 @@ static void cmd_flash(const char *part_name, void *data, unsigned sz)
 			}
 			snprintf(path, FILE_NAME_SIZ, "%s", v->device);
 		}
-		if (v && ((sparse_header_t*)data)->magic == SPARSE_HEADER_MAGIC) {
-			pr_info("sparse image data detected flash sparse package\n");
-			ret = write_ext4_sparse(v->device, data, sz);
-		} else if ((ret = named_file_write(path, data, sz)) < 0) {
+		if ((ret = named_file_write(path, data, sz)) < 0) {
 			pr_error("Can't write data to target %s!\n", path);
 			goto out;
 		}
