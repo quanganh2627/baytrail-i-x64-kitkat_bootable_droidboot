@@ -336,7 +336,7 @@ static int cmd_flash_system(void *data, unsigned sz)
 	return ret;
 }
 
-static void cmd_flash(const char *part_name, void *data, unsigned sz)
+int aboot_flash(const char *part_name, void *data, unsigned sz)
 {
 	char path[FILE_NAME_SIZ];
 	int ret = -1;
@@ -372,7 +372,12 @@ static void cmd_flash(const char *part_name, void *data, unsigned sz)
 	}
 
 out:
-	if (ret == 0) {
+	return ret;
+}
+
+static void cmd_flash(const char *part_name, void *data, unsigned sz)
+{
+	if (aboot_flash(part_name, data, sz) == 0) {
 		ui_print("FLASH COMPLETE!\n");
 		fastboot_okay("");
 	} else {
