@@ -58,6 +58,9 @@
 #define USB_FFS_ADB_OUT   USB_FFS_ADB_EP(ep1)
 #define USB_FFS_ADB_IN    USB_FFS_ADB_EP(ep2)
 
+#define MAX_USB_FFS_ADB_EP0_TRIES 30
+#define DELAY_USB_FFS_ADB_EP0_TRIES 100000 /* in us */
+
 #define ADB_CLASS              0xff
 #define ADB_SUBCLASS           0x42
 #define FASTBOOT_PROTOCOL      0x3
@@ -551,9 +554,12 @@ static int open_usb_fd(void)
 static int open_usb_ffs(void)
 {
 	ssize_t ret;
-	int control_fp;
+	int control_fp = -1;
+	int ntries = 0;
 
-	control_fp = open(USB_FFS_ADB_EP0, O_RDWR);
+	/* Retry to connect to avoid race condition with stop adbd */
+	while ((control_fp = open(USB_FFS_ADB_EP0, O_RDWR)) == -EBUSY && ntries++ <= MAX_USB_FFS_ADB_EP0_TRIES)
+		usleep(DELAY_USB_FFS_ADB_EP0_TRIES);
 	if (control_fp < 0) {
 		pr_info("[ %s: cannot open control endpoint: errno=%d]\n", USB_FFS_ADB_EP0, errno);
 		goto err;
