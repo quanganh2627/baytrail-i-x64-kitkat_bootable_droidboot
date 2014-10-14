@@ -523,14 +523,26 @@ static void resize_bitmap(gr_surface *surface, int screen_ratio)
 		return;
 
 	gr_surface d = malloc(sizeof(*s));
+	if (!d)
+		goto error_d;
+
 	d->height = fb_height * screen_ratio / 100;
 	d->width = s->width * d->height / s->height;
 	d->pixel_bytes = s->pixel_bytes;
 	d->row_bytes = d->width * d->pixel_bytes;
 	d->data = malloc(d->height * d->row_bytes);
+	if (!d->data)
+		goto error_data;
 	bilinear_scale(s->data, d->data, s->width, s->height, d->width, d->height, d->pixel_bytes);
 	*surface = d;
 	res_free_surface(s);
+	return;
+
+error_data:
+	free(d->data);
+error_d:
+	free(d);
+	printf("ERROR %s: Allocation failure", __func__);
 }
 
 void ui_init(void)
