@@ -433,6 +433,8 @@ static void cmd_getvar(const char *arg, void *data, unsigned sz)
 				(device_volumes[i].mount_point) + 1)) > MAX_FASTBOOT_RESPONSE_SIZE)
 					goto error;
 			varvalue = fastboot_getvar(varname);
+			if (varvalue == NULL)
+					goto error_var;
 			if ((snprintf(response, sizeof(response), "%s: %s", varname, varvalue)) >
 				MAX_FASTBOOT_RESPONSE_SIZE)
 					goto error;
@@ -441,6 +443,8 @@ static void cmd_getvar(const char *arg, void *data, unsigned sz)
 				(device_volumes[i].mount_point) + 1)) > MAX_FASTBOOT_RESPONSE_SIZE)
 					goto error;
 			varvalue = fastboot_getvar(varname);
+			if (varvalue == NULL)
+					goto error_var;
 			if ((snprintf(response, sizeof(response), "%s: %s", varname, varvalue)) >
 				MAX_FASTBOOT_RESPONSE_SIZE)
 					goto error;
@@ -457,6 +461,9 @@ static void cmd_getvar(const char *arg, void *data, unsigned sz)
 	return;
 error:
 	fastboot_fail("Unable to get partition info, partition name too long");
+	return;
+error_var:
+	fastboot_fail("Unknown variable");
 	return;
 }
 
