@@ -179,9 +179,7 @@ void cmd_erase(const char *part_name, void *data, unsigned sz)
 
 	/* supports fastboot -w who wants to erase userdata */
 	ui_print("ERASE %s...\n", part_name);
-	if (!strcmp(part_name, "userdata"))
-		sprintf(mnt_point, "/data");
-	ret = format_volume(mnt_point);
+	ret = erase_partition(part_name);
 	ui_print("ERASE %s\n", ret==0 ? "COMPLETE." : "FAILED!");
 
 	if (ret==0)
