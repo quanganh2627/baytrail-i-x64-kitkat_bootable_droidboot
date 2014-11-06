@@ -274,16 +274,18 @@ static int draw_surface_locked(gr_surface s, int y)
 
 static void draw_screen_locked()
 {
-	int i, j;
+	int i, j, top;
 	int y = 60;
 
 	ui_gr_color_fill(&black);
 	y = draw_surface_locked(gTarget[target_selected], y);
 	y += 60;
 	y = draw_surface_locked(gCurrentIcon, y);
-	UI_BLOCK[INFO].top = pixel_to_row(y);
+	top = pixel_to_row(y);
 	for (i = 0; i < BLOCK_NUM; i++)
 		if (UI_BLOCK[i].show == VISIBLE) {
+			UI_BLOCK[i].top = top;
+			top += UI_BLOCK[i].rows;
 			for (j = 0; j < UI_BLOCK[i].rows; j++) {
 				ui_gr_color(UI_BLOCK[i].clr_table[j]);
 				draw_text_line(UI_BLOCK[i].top+j, UI_BLOCK[i].text_table[j]);
