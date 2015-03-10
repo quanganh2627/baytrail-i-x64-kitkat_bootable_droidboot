@@ -25,6 +25,10 @@ LOCAL_CFLAGS := -DDEVICE_NAME=\"$(TARGET_BOOTLOADER_BOARD_NAME)\" \
 	-W -Wall -Wno-unused-parameter -Werror \
 	-D OTA_UPDATE_FILE='"$(DROIDBOOT_OTA_UPDATE_FILE)"'
 
+ifeq ($(DROIDBOOT_INTERNAL_DEBUG),true)
+LOCAL_C_FLAGS += -DDROIDBOOT_INTERNAL_DEBUG
+endif
+
 ifeq ($(TARGET_RECOVERY_PIXEL_FORMAT),"RGBX_8888")
 LOCAL_CFLAGS += -DRECOVERY_RGBX
 endif
@@ -70,9 +74,9 @@ $(inc) : libs := $(TARGET_DROIDBOOT_LIBS)
 $(inc) : $(inc).list $(LOCAL_PATH)/Android.mk
 	$(hide) mkdir -p $(dir $@)
 	$(hide) echo "" > $@
-	$(hide) $(foreach lib,$(libs),echo "extern void $(lib)_init(void);" >> $@)
+	$(hide) $(foreach lib,$(libs),echo "extern void $(lib)_init(void);" >> $@;)
 	$(hide) echo "void register_droidboot_plugins() {" >> $@
-	$(hide) $(foreach lib,$(libs),echo "  $(lib)_init();" >> $@)
+	$(hide) $(foreach lib,$(libs),echo "  $(lib)_init();" >> $@;)
 	$(hide) echo "}" >> $@
 
 $(call intermediates-dir-for,EXECUTABLES,droidboot)/aboot.o : $(inc)

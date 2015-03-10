@@ -351,16 +351,12 @@ int aboot_flash(const char *part_name, void *data, unsigned sz)
 		if ((ret = cb(data, sz)) != 0)
 			pr_error("%s flash failed!\n", part_name);
 	} else {
-		if (part_name[0] == '/') {
-			snprintf(path, FILE_NAME_SIZ, "%s", part_name);
-		} else {
-			snprintf(path, FILE_NAME_SIZ, "/%s", part_name);
-			if ((v = volume_for_path(path)) == NULL) {
-				pr_error("unknown volume %s to flash!\n", path);
-				goto out;
-			}
-			snprintf(path, FILE_NAME_SIZ, "%s", v->device);
+		if ((v = get_part_volume(part_name)) == NULL) {
+			pr_error("unknown volume %s to flash!\n", part_name);
+			goto out;
 		}
+		snprintf(path, FILE_NAME_SIZ, "%s", v->device);
+
 		if (v && ((sparse_header_t*)data)->magic == SPARSE_HEADER_MAGIC) {
 			pr_info("sparse image data detected flash sparse package\n");
 			ret = write_ext4_sparse(v->device, data, sz);
